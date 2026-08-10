@@ -1,0 +1,731 @@
+OVERLAYAI - HISTORIAL TECNICO DEL INVENTORY CHANGER
+Estado documentado: 2026-07-26
+
+======================================================================
+1. OBJETIVO Y ALCANCE REAL
+======================================================================
+
+El Inventory Changer de OverlayAI es un sistema local. OverlayAI mantiene una
+coleccion propia, un loadout propio y aplica determinados cambios visuales o de
+estado exclusivamente en el cliente de CS2.
+
+El sistema NO:
+
+- Crea objetos reales en Steam.
+- Modifica el inventario del backend.
+- Envia mensajes falsos al Game Coordinator.
+- Otorga ownership real de un objeto.
+- Hace que otros jugadores vean el inventario local.
+- Inserta actualmente objetos falsos en SOCache.
+
+La arquitectura actual separa cuatro responsabilidades:
+
+1. OverlayAI.exe: catalogo, coleccion, Configs, menu y fuente de verdad.
+2. Servidor IPC local: comunica estados y acciones mediante JSON versionado.
+3. InventoryBridge.dll: codigo interno minimo para operaciones que un external
+   no puede realizar correctamente, como modelos y animaciones.
+4. Frontends de prueba: InventoryHost y el prototipo Panorama desacoplado.
+
+======================================================================
+2. RUTAS IMPORTANTES
+======================================================================
+
+Workspace y solucion:
+C:\Users\ariel\Desktop\Cosas cs2\Mi cheat 0\OverlayAI
+
+Codigo principal:
+C:\Users\ariel\Desktop\Cosas cs2\Mi cheat 0\OverlayAI\OverlayAI
+
+Salida correcta de compilacion:
+C:\Users\ariel\Desktop\Cosas cs2\Mi cheat 0\OverlayAI\x64\Release
+
+Offsets generados por cs2-dumper:
+C:\Users\ariel\Desktop\Cosas cs2\Mi cheat 0\OverlayAI\x64\Release\output
+
+Proyecto del inyector:
+C:\Users\ariel\Desktop\OtroInyector\OtroInyector
+
+DLL que el inyector busca junto a su ejecutable:
+C:\Users\ariel\Desktop\OtroInyector\OtroInyector\x64\Release\XrayModule.dll
+
+El archivo XrayModule.dll es una copia desplegada de:
+C:\Users\ariel\Desktop\Cosas cs2\Mi cheat 0\OverlayAI\x64\Release\OverlayAI.InventoryBridge.dll
+
+Referencia externa auditada:
+C:\Users\ariel\Desktop\Inventory changer
+
+======================================================================
+3. PROYECTOS DE LA SOLUCION
+======================================================================
+
+OverlayAI.sln contiene actualmente:
+
+- OverlayAI
+  Ejecutable external principal con ImGui, lectura/escritura de memoria,
+  Configs, catalogo, coleccion y servidor IPC.
+
+- OverlayAI.InventoryTests
+  Pruebas deterministas para modelo local, validacion, persistencia, protocolo
+  y transporte.
+
+- OverlayAI.PanoramaProbe
+  Herramienta de investigacion para comprobar interfaces y recursos Panorama
+  sin asumir una ABI no verificada.
+
+- OverlayAI.InventoryHost
+  Cliente CLI independiente para probar el servidor IPC sin depender de
+  Panorama ni de la DLL inyectada.
+
+- OverlayAI.InventoryBridge
+  DLL x64 interna que se inyecta en CS2 y consume snapshots publicados por el
+  Overlay.
+
+Todos los proyectos escriben sus binarios en la salida exterior x64\Release.
+Esto evita la antigua confusion con OverlayAI\OverlayAI\x64\Release.
+
+======================================================================
+4. MODELO LOCAL DEL INVENTARIO
+======================================================================
+
+Archivos principales:
+
+- OverlayAI\src\InventoryTypes.h
+- OverlayAI\src\InventoryCatalog.cpp/.h
+- OverlayAI\src\InventoryCatalogData.inc
+- OverlayAI\src\InventoryValidator.cpp/.h
+- OverlayAI\src\InventoryStore.cpp/.h
+- OverlayAI\src\InventoryChanger.cpp/.h
+- OverlayAI\src\InventoryPersistence.cpp/.h
+
+Cada objeto agregado por el usuario es un LocalInventoryItem independiente.
+Sus campos actuales incluyen:
+
+- occupied
+- localId
+- type
+- definitionIndex
+- paintIndex
+- wear
+- seed
+- statTrak
+- statTrakCount
+- souvenir
+- equippedTeam
+- acquiredAt
+- validity
+- customName
+- displayName
+
+localId es la identidad real dentro de OverlayAI. No es un Steam Item ID y no
+se reutiliza deliberadamente como ownership real.
+
+Tipos soportados por el modelo:
+
+- Music Kit
+- Weapon Skin
+- Knife
+- Gloves
+- Agent
+
+Estados de validez:
+
+- Valid
+- Outdated
+- Incompatible
+- Incomplete
+
+El loadout local referencia localId y contiene slots separados para:
+
+- Music Kit
+- Knife T
+- Knife CT
+- Gloves T
+- Gloves CT
+- Agent T
+- Agent CT
+
+La coleccion permite hasta 256 instancias. Dos objetos con la misma definicion,
+paint kit, wear y seed siguen siendo instancias diferentes si tienen localId
+distinto.
+
+El catalogo offline contiene aproximadamente 2290 entradas y aporta nombres,
+imagenes, categoria, rareza, paint kit, limites de wear y compatibilidad con
+StatTrak/Souvenir. El validador evita aplicar combinaciones incompatibles.
+
+======================================================================
+5. PERSISTENCIA Y CONFIGS
+======================================================================
+
+El formato actual tiene storage version 4. La carga mantiene migraciones para:
+
+- Lineas legacy de Music Kits.
+- inventory_item_v2.
+- inventory_item_v3 con localId y campos completos.
+
+Los textos se guardan codificados en hexadecimal para evitar que separadores o
+caracteres especiales rompan el formato.
+
+Se persisten:
+
+- Estado enabled.
+- nextLocalId.
+- selectedLocalId.
+- pendingRevealItemId.
+- Cola de reveal.
+- Loadout de Music Kit, cuchillos y agentes.
+- Cada objeto ocupado con su variante completa.
+
+Al cargar se revalida la coleccion, se reparan referencias antiguas cuando es
+posible y se eliminan referencias de loadout que ya no apuntan a objetos
+validos.
+
+Limitacion pendiente detectada:
+
+- La estructura ya contiene loadout de guantes, pero las lineas de guardado y
+  carga de glove T/CT deben incorporarse cuando se implemente su runtime.
+
+======================================================================
+6. MUSIC KITS: IMPLEMENTACION EXTERNAL
+======================================================================
+
+Music Kits fue el primer vertical slice funcional.
+
+OverlayAI aplica el Music ID desde el proceso external mediante:
+
+- Controller: m_iMusicKitID.
+- InventoryServices: m_unMusicID.
+
+Protecciones implementadas:
+
+- Actualizacion limitada a intervalos de 250 ms.
+- Cuatro muestras estables antes de aceptar un nuevo controller/contexto.
+- Captura del estado original antes de escribir.
+- WriteIfDifferent para evitar escrituras repetidas.
+- Restauracion al desactivar, desequipar, eliminar, cerrar Overlay o perder el
+  contexto valido.
+- No se intenta restaurar sobre direcciones pertenecientes a otra entidad.
+- Reaplicacion explicita cuando cambia el loadout.
+
+Se probaron:
+
+- Agregar kits existentes a la coleccion local.
+- Equiparlos.
+- Guardarlos y cargarlos en distintos Config slots.
+- Restaurar el kit original.
+- Mantener el estado al controlar un bot sin escribir sobre un contexto viejo.
+
+Limitacion:
+
+- La musica del menu principal depende de Panorama/LoadoutAPI y no tiene una
+  raiz external estable comprobada.
+
+======================================================================
+7. SERVIDOR IPC LOCAL
+======================================================================
+
+Archivos principales:
+
+- OverlayAI\src\InventoryIpcServer.cpp/.h
+- OverlayAI\src\InventoryIpcController.cpp/.h
+- OverlayAI\src\InventoryProtocol.cpp/.h
+- OverlayAI\src\InventoryLog.cpp/.h
+
+Nombre del named pipe:
+\\.\pipe\OverlayAI.Inventory.v1
+
+Caracteristicas del transporte:
+
+- Pipe duplex local.
+- Rechazo de clientes remotos.
+- Acceso permitido al mismo usuario de Windows, administradores y SYSTEM.
+- Etiqueta de integridad media para permitir que CS2 normal se conecte a un
+  Overlay elevado.
+- Frames con prefijo uint32 de longitud.
+- Tamano maximo por frame: 256 KiB.
+- Maximo de 128 frames en las colas internas.
+- Timeout de respuesta de 5 segundos.
+- Worker dedicado; no bloquea el render de ImGui.
+- Contadores de recibidos, enviados y rechazados.
+- Liberacion de pipe, thread, colas y handles durante Stop.
+
+El hilo del servidor recibe bytes y los coloca en una cola. El hilo principal
+de OverlayAI llama InventoryIpcController::Pump y procesa hasta 32 comandos por
+frame. De esta forma las acciones que modifican el estado del programa ocurren
+en el contexto controlado del Overlay y no dentro del worker de transporte.
+
+Seguridad logica del protocolo:
+
+- protocol_version obligatorio.
+- message_type obligatorio.
+- request_id obligatorio.
+- payload validado por tipo y rango.
+- Limite de sesiones recordadas: 8.
+- Limite de request IDs recordados por sesion: 256.
+- Rechazo de duplicados para evitar repetir acciones no idempotentes.
+- Errores estructurados mediante protocol.error.
+
+Mensajes de entrada soportados:
+
+- client.hello
+- inventory.request_refresh
+- inventory.equip
+- inventory.unequip
+- inventory.remove
+- inventory.duplicate
+- inventory.inspect
+- inventory.close_reveal
+
+Mensajes de salida principales:
+
+- inventory.snapshot
+- inventory.item_added
+- inventory.item_removed
+- inventory.loadout_changed
+- inventory.reveal_closed
+- inventory.apply_failed
+- protocol.error
+
+El snapshot incluye la coleccion, loadout, seleccion, pending reveal, metadatos
+de catalogo y offsets runtime necesarios para el bridge. No se envian punteros
+entre procesos.
+
+======================================================================
+8. INVENTORY HOST: CLIENTE DE PRUEBA
+======================================================================
+
+OverlayAI.InventoryHost.exe es un cliente CLI separado. Se creo para validar
+el servidor y el contrato antes de depender de Panorama.
+
+Comandos disponibles:
+
+- list [--json]
+- watch [iteraciones] [intervalo_ms] [--json]
+- equip <local_id> [t|ct|both]
+- unequip [local_id] [t|ct|both]
+- duplicate <local_id>
+- remove <local_id>
+- inspect <local_id>
+- close-reveal <local_id>
+
+El host:
+
+1. Se conecta al named pipe.
+2. Envia client.hello con una sesion propia.
+3. Recibe un inventory.snapshot.
+4. Envia una accion versionada.
+5. Imprime la respuesta y, cuando corresponde, solicita otro snapshot.
+
+Esta herramienta permitio probar preload, save/load, equipamiento y cambios de
+loadout sin inyectar primero una interfaz Panorama.
+
+======================================================================
+9. PROTOTIPO PANORAMA Y SUS LIMITACIONES
+======================================================================
+
+Recursos:
+
+- OverlayAI\panorama\layout\overlayai_local_inventory.xml
+- OverlayAI\panorama\styles\overlayai_local_inventory.css
+- OverlayAI\panorama\scripts\overlayai_local_inventory.js
+- OverlayAI\panorama\PANORAMA_BRIDGE_CONTRACT.md
+- OverlayAI\panorama\PANORAMA_MOUNT_RESEARCH.md
+- OverlayAI\src\PanoramaBridgeContract.h
+
+El frontend prototipo implementa conceptualmente:
+
+- NEW ITEM.
+- Coleccion local.
+- Filtros y categorias.
+- Tarjetas y detalles.
+- Estados equipados.
+- Acciones de equipar, desequipar, duplicar, eliminar y cerrar reveal.
+- Reconstruccion sin duplicar el panel raiz.
+- Callback OverlayAIPanoramaBridgeSend para enviar JSON al host.
+
+El frontend y su simulacion JavaScript son comprobables sin CS2.
+
+Lo que NO esta montado en el cliente oficial:
+
+- No existe una ABI publica verificada para crear paneles en el contexto global
+  de Panorama desde nuestro modulo.
+- PanoramaUIEngine001 y PanoramaUIClient001 existen, pero sus vtables y reglas
+  de thread no deben asumirse.
+- AllowCustomGameUI esta desactivado en el cliente normal.
+- No se modifican archivos oficiales de forma permanente.
+
+Por ese motivo el contrato, los recursos y el transporte permanecen separados.
+No se ha usado ensayo y error con indices de vtable ni se ha fingido una API.
+
+======================================================================
+10. INVENTORY BRIDGE INYECTADO
+======================================================================
+
+Archivo principal:
+OverlayAI.InventoryBridge\InventoryBridge.cpp
+
+La DLL existe porque un external no puede cambiar correctamente ciertos
+modelos, reconstruir subclass, utilizar animaciones ni interceptar eventos del
+cliente en el momento apropiado.
+
+Objetos nombrados usados por el bridge:
+
+- Local\OverlayAI.InventoryBridge.Stop
+- Local\OverlayAI.InventoryBridge.Ready
+- Local\OverlayAI.InventoryBridge.Singleton
+
+Inicio:
+
+1. DllMain crea un worker y desactiva notificaciones de threads.
+2. El worker evita dos instancias mediante el mutex Singleton.
+3. Resuelve interfaces Source2Client002, Source2EngineToClient001 y
+   PanoramaUIEngine001.
+4. Escanea firmas verificadas de la build actual.
+5. Instala los hooks necesarios.
+6. Se conecta periodicamente al pipe de OverlayAI.
+7. Publica un snapshot interno solamente cuando cambia su hash.
+
+Firmas/funciones verificadas en la build documentada:
+
+- SetModel.
+- UpdateSubclass.
+- FindHudElement.
+- ClearHudWeaponIcon.
+- InventoryManager como diagnostico de investigacion.
+
+El bridge valida memoria con VirtualQuery antes de leer o escribir y envuelve
+las llamadas internas de mayor riesgo con SEH cuando corresponde.
+
+======================================================================
+11. HOOK DE FRAME Y APLICACION DE AGENTES
+======================================================================
+
+Se usa FrameStage en el indice 36 y se ejecuta la logica interna en el stage
+validado para evitar escrituras desde un thread arbitrario.
+
+Los agentes se resuelven mediante una tabla de definition index a model path.
+La tabla actual se encuentra en:
+OverlayAI.InventoryBridge\AgentModels.inc
+
+La seleccion diferencia T y CT. El bridge resuelve el controller de cuenta y
+el pawn adecuado, incluyendo los cambios producidos al morir, observar o tomar
+control de un bot.
+
+Se guarda el modelo original antes de aplicar SetModel. Al desactivar, cambiar
+de seleccion o cerrar Overlay se restaura solamente si el pawn sigue siendo el
+mismo contexto valido. Se probo la restauracion al agente default.
+
+======================================================================
+12. BUTTERFLY KNIFE: IDENTIDAD, MODELO Y ANIMACIONES
+======================================================================
+
+Estado actual soportado:
+
+- Definition index: 515.
+- Subclass ID validado: 1353709123.
+- Modelo:
+  weapons/models/knife/knife_butterfly/weapon_knife_butterfly.vmdl
+
+Flujo de aplicacion:
+
+1. Se obtiene el cuchillo equipado desde WeaponServices.
+2. Se valida su handle completo y la entidad resuelta.
+3. Se exige estabilidad durante 350 ms antes de la primera mutacion.
+4. Se guarda definition index, subclass, modelos y spawn time originales.
+5. Se escribe definition 515 y el subclass del Butterfly.
+6. Se llama UpdateSubclass una sola vez para reconstruir identidad y
+   animaciones.
+7. Se resuelve el viewmodel asociado recorriendo HudModelArms.
+8. Se aplica SetModel al arma y al viewmodel.
+9. Se verifica el modelo observado.
+
+Las animaciones incorrectas iniciales se corrigieron al descubrir que cambiar
+solo el modelo no era suficiente. UpdateSubclass con el subclass correcto hace
+que inspeccion, draw y animaciones Butterfly sean las reales.
+
+======================================================================
+13. HUD Y KILLFEED DEL CUCHILLO
+======================================================================
+
+HUD:
+
+- Se limpia el cache de descripcion del C_EconItemView.
+- Se obtiene HudWeaponSelection.
+- Se llama la funcion interna validada para limpiar/reconstruir iconos.
+- El refresco ocurre con retraso y un numero limitado de intentos.
+
+Esto permite que el selector de armas muestre el Butterfly. La tienda usa otro
+panel/loadout y puede mostrar brevemente el cuchillo default; queda separado
+como una mejora Panorama/HUD posterior.
+
+Killfeed:
+
+- Se resuelve el game event manager.
+- Se registra un listener de player_death.
+- Se instala un pre-hook de FireEventClientSide para cambiar el evento antes de
+  que Panorama lo consuma.
+- El listener registrado queda como fallback y no procesa dos veces cuando el
+  pre-hook esta activo.
+- Solo se modifica el evento si el atacante es el local player.
+- weapon cambia de knife/knife_t a knife_butterfly.
+
+Bug de soltar y recoger:
+
+Despues de recoger el cuchillo, Panorama priorizaba los campos economicos del
+evento y mostraba el icono default aunque weapon ya fuera knife_butterfly.
+
+La solucion fue modificar solo el evento local player_death:
+
+- weapon_itemid = 0
+- weapon_fauxitemid = 18446744069414584835
+
+Ese faux ID equivale a 0xFFFFFFFF00000203 y describe definition index 515.
+No crea un item ni modifica ownership; solo proporciona identidad visual al
+evento de killfeed.
+
+Se comprobo killfeed correcto como jugador y al controlar bots.
+
+======================================================================
+14. CICLO DE VIDA, RESTAURACION Y CRASHES CORREGIDOS
+======================================================================
+
+Problemas encontrados durante las pruebas:
+
+- Restaurar/reaplicar en cada cambio de arma llamaba UpdateSubclass demasiadas
+  veces.
+- Reinicios de ronda podian dejar punteros de entidades expiradas.
+- mp_restartgame podia invalidar el arma antes de restaurarla.
+- Un mapa con Butterfly nativo no debia recibir otra mutacion.
+- Soltar/recoger cambia la identidad y el handle de la entidad.
+
+Protecciones actuales:
+
+- El Butterfly permanece aplicado al cambiar temporalmente a pistola/rifle.
+- No se restaura y reaplica en cada weapon switch.
+- Se guarda el handle completo, no solo el indice bajo.
+- Antes de restaurar se resuelve nuevamente el handle y se compara con el
+  handle real de la entidad.
+- Se compara last spawn time para detectar un nuevo spawn.
+- Una entidad expirada se descarta sin escribir sobre memoria reutilizada.
+- Un Butterfly nativo con definition/subclass correctos no llama UpdateSubclass.
+- Shutdown espera la restauracion dentro de un plazo limitado y luego retira
+  hooks limpiamente.
+
+Se analizaron crashes con WER/dumps. Uno de ellos ocurria dentro de
+UpdateSubclass tras una transicion insegura. Las validaciones anteriores y la
+reduccion de llamadas eliminaron el caso reproducible con mp_restartgame.
+
+======================================================================
+15. OPTIMIZACIONES DE RENDIMIENTO DEL BRIDGE
+======================================================================
+
+Se detectaron tirones por dos causas:
+
+1. Knife dry-run recorria entidades/modelos y escribia al log repetidamente.
+2. El snapshot se parseaba y publicaba cada segundo aunque fuera identico.
+
+Correcciones:
+
+- Se eliminaron los dry-run periodicos del ciclo de produccion.
+- El snapshot solo se publica si cambia su hash.
+- El evento de killfeed se procesa una vez con pre-hook activo.
+- Mientras el Butterfly permanece equipado se usa un estado estable.
+- El recorrido pesado de HudModelArms y las lecturas de modelos solo ocurren al
+  equipar, recoger, reaparecer o cambiar de entidad.
+- La validacion estable del mismo cuchillo se reduce a handle, definition y
+  subclass, con intervalo relajado.
+
+Resultado comprobado:
+
+- Sin tirones con Butterfly equipado.
+- Sin tirones con el cuchillo en el suelo.
+- Sin tirones al usar otras armas.
+- Animaciones, HUD y killfeed se mantienen correctos.
+
+======================================================================
+16. PANIC Y LIMPIEZA
+======================================================================
+
+Se agrego una pestana Home como primera pestana del menu.
+
+Incluye:
+
+- Panic button.
+- Checkbox/bind configurable.
+- Tecla default END.
+
+Al activar Panic:
+
+1. OverlayAI sale de su loop.
+2. InventoryIpcController envia el evento Stop al bridge.
+3. El bridge retira pre-hook y listener de killfeed.
+4. Restaura agentes/cuchillo si las entidades siguen siendo validas.
+5. Retira FrameStage.
+6. Cierra handles y worker.
+7. Overlay restaura Music Kit, anti-flash, smoke, radar y otros overrides.
+8. Se detiene el servidor IPC y se liberan sus recursos.
+
+Log interno del bridge:
+%TEMP%\OverlayAI.InventoryBridge.log
+
+======================================================================
+17. VINCULACION CON OTROINYECTOR
+======================================================================
+
+OtroInyector es un inyector x64 por Manual Map.
+
+Codigo relevante:
+
+- C:\Users\ariel\Desktop\OtroInyector\OtroInyector\ManualMap.cpp/.h
+- C:\Users\ariel\Desktop\OtroInyector\OtroInyector\OtroInyector.cpp
+
+El boton Inject:
+
+1. Localiza cs2.exe.
+2. Busca XrayModule.dll junto al ejecutable del inyector.
+3. Abre el proceso objetivo.
+4. Ejecuta ManualMap sobre la DLL.
+
+Flujo de despliegue usado durante el desarrollo:
+
+1. Compilar OverlayAI.sln en Release|x64.
+2. Ejecutar OverlayAI.InventoryTests.exe.
+3. Copiar OverlayAI.InventoryBridge.dll como XrayModule.dll.
+4. Comparar SHA-256 de origen y destino.
+5. Iniciar OverlayAI.exe.
+6. Inyectar XrayModule.dll con OtroInyector.
+
+La DLL no depende del nombre XrayModule internamente; ese nombre es el contrato
+de despliegue del inyector.
+
+======================================================================
+18. AUTO OFFSETS Y SNAPSHOT RUNTIME
+======================================================================
+
+OverlayAI mantiene el sistema de offsets generado por cs2-dumper. Los offsets
+se validan y cargan desde la ruta output de la compilacion exterior.
+
+El snapshot IPC transporta los offsets runtime requeridos por el bridge, entre
+ellos:
+
+- entity list
+- local controller y local pawn
+- player pawn handle
+- team y life state
+- spawn time
+- game scene node y model state
+- owner entity
+- HudModelArms y arbol de scene nodes
+- WeaponServices y active weapon
+- subclass ID
+- attribute manager e item view
+- item definition index
+- fallback paint kit, seed y wear
+
+El bridge no lleva una segunda copia manual permanente de esos offsets. Las
+firmas de funciones internas siguen siendo dependientes de build y se validan
+por cantidad de coincidencias antes de habilitar la funcion.
+
+======================================================================
+19. PRUEBAS Y RESULTADOS CONFIRMADOS
+======================================================================
+
+Confirmado durante sesiones reales de desarrollo:
+
+- Catalogo y coleccion local.
+- Instancias duplicadas con localId propio.
+- Preload, save y load de Configs.
+- Music Kits equipados/restaurados.
+- Servidor IPC y cliente InventoryHost.
+- Snapshots y comandos versionados.
+- Agentes T/CT y restauracion default.
+- Control de bot sin usar punteros viejos.
+- Butterfly model correcto.
+- Animaciones Butterfly correctas.
+- Selector HUD con icono Butterfly.
+- Killfeed Butterfly para jugador y bot.
+- Killfeed correcto despues de soltar y recoger.
+- Lanzar y recoger el cuchillo sin romper el modelo.
+- mp_restartgame sin el crash reproducible anterior.
+- Panic con retirada limpia de hooks.
+- Rendimiento estable con Butterfly equipado.
+
+======================================================================
+20. LIMITACIONES ACTUALES
+======================================================================
+
+- El runtime de cuchillos solo conoce Butterfly 515.
+- Entity quality especial todavia no se aplica; falta garantizar la estrella.
+- Paint kit, wear, seed y StatTrak via bridge aun no se escriben/restauran.
+- No hay runtime de guantes.
+- No hay runtime completo de skins de armas.
+- La tienda puede mostrar temporalmente el icono default.
+- Panorama oficial no esta montado por falta de una ABI estable comprobada.
+- inventory.inspect permanece reservado para una integracion de preview.
+- SOCache solo se investigo; no se insertan CEconItem falsos.
+- Cada update de CS2 puede cambiar firmas, offsets, subclasses o modelos.
+- El uso online mantiene riesgo de deteccion aunque el inventario sea local.
+
+======================================================================
+21. SIGUIENTES CINCO PUNTOS APROBADOS
+======================================================================
+
+Punto 1 - Completar Butterfly
+
+- Guardar y aplicar m_iEntityQuality especial.
+- Mostrar la estrella cuando corresponda.
+- Restaurar la calidad original.
+- Validar muerte, respawn, throw/pick, Panic y mp_restartgame.
+
+Punto 2 - Todos los cuchillos
+
+- Tabla generica por definition index.
+- Subclass ID verificado por cuchillo.
+- Model path.
+- Nombre de evento para killfeed.
+- Faux item ID dinamico.
+- HUD y restauracion compartidos.
+- Evitar hardcodes exclusivos de Butterfly.
+
+Punto 3 - Acabados de cuchillos
+
+- Paint kit compatible.
+- Wear dentro de min/max.
+- Seed.
+- StatTrak y contador cuando la variante lo permita.
+- Quality derivada del tipo de objeto.
+- Guardado y restauracion atomicos.
+
+Punto 4 - Guantes
+
+- Completar persistencia de loadout T/CT.
+- Resolver entidad/econ view correcta.
+- Aplicar definition/paint/wear/seed.
+- Forzar reapply solo cuando sea necesario.
+- Restaurar sin usar entidades expiradas.
+
+Punto 5 - Skins de armas
+
+- No cambiar el modelo base de manera generica.
+- Aplicar fallback paint/wear/seed/StatTrak al arma correcta.
+- Diferenciar arma propia, recogida y respawn.
+- Mantener inventario localId separado de item IDs reales.
+- Refrescar HUD solo en transiciones.
+- Restaurar todos los campos modificados al cerrar.
+
+======================================================================
+22. REGLAS PARA CONTINUAR
+======================================================================
+
+- Cambios pequenos, compilables y probados por fase.
+- No asumir subclasses ni firmas.
+- No llamar funciones internas desde threads arbitrarios.
+- No escribir continuamente si el estado ya coincide.
+- Guardar todo valor original antes de la primera mutacion.
+- Validar entidad, handle y spawn antes de restaurar.
+- Mantener el external como fuente de verdad.
+- Mantener el bridge pequeno y desacoplado.
+- No insertar objetos en SOCache sin una investigacion y aprobacion separadas.
+- Conservar InventoryHost y tests como ruta de comprobacion independiente.
+- Actualizar este documento cuando cambie la arquitectura o se cierre una fase.
+
+FIN DEL ESTADO DOCUMENTADO.

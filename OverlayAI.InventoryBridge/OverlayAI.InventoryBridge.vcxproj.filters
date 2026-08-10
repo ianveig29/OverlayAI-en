@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{C89313E6-2BC4-47B3-8C7B-FB6B70DB6749}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx</Extensions>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="BridgeLogging.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="BuildCompatibility.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="PanoramaDiagnostics.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="PanoramaMount.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="InventoryBridge.cpp"><Filter>Source Files</Filter></ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="BridgeLogging.h" />
+    <ClInclude Include="BuildCompatibility.h" />
+    <ClInclude Include="PanoramaDiagnostics.h" />
+    <ClInclude Include="PanoramaMount.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="AgentModels.inc" />
+    <None Include="KnifeModels.inc" />
+  </ItemGroup>
+</Project>

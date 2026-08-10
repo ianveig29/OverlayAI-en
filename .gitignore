@@ -1,0 +1,40 @@
+# Build artifacts
+*.iobj
+*.ipch
+*.pdb
+*.ilk
+*.obj
+*.exe
+*.dll
+*.lib
+*.exp
+*.idb
+*.map
+*.tlog
+*.log
+*.cache
+
+# Visual Studio
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.aps
+*.ncb
+*.opensdf
+*.sdf
+*.cachefile
+*.VC.db
+*.VC.VC.opendb
+
+# Build directories
+x64/
+Debug/
+Release/
+
+# Tools (large binaries)
+tools/vrf/
+
+# Package staging
+package_staging*/

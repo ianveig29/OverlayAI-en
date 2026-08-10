@@ -1,0 +1,659 @@
+OVERLAYAI - REVISIÓN TÉCNICA, PREOCUPACIONES Y PRIORIDADES
+Documento para Codex
+Fecha: 2026-07-26
+
+======================================================================
+0. PROPÓSITO DE ESTE DOCUMENTO
+======================================================================
+
+Este documento complementa HISTORIAL_TECNICO_INVENTORY_CHANGER_2026-07-26.txt.
+
+El progreso actual es bueno y la arquitectura general va en la dirección
+correcta. Sin embargo, existe un riesgo claro de que el proyecto continúe
+creciendo principalmente como runtime skin/model changer y que el objetivo
+original de experiencia de inventario quede permanentemente relegado.
+
+El objetivo original que debe seguir guiando el diseño es:
+
+1. Añadir un objeto local desde OverlayAI.
+2. Mostrar una presentación "NEW ITEM" dentro de la UI de CS2.
+3. Hacer que el objeto aparezca en una colección Panorama local.
+4. Permitir seleccionar, inspeccionar, equipar y desequipar.
+5. Mantener todo exclusivamente local y falso.
+6. No crear ownership real ni modificar Steam, GC o SOCache.
+7. Restaurar y limpiar todo correctamente.
+
+No se pide abandonar el runtime ya implementado. Se pide evitar que el runtime
+absorba todo el desarrollo y deje Panorama como un prototipo eterno.
+
+======================================================================
+1. EVALUACIÓN GENERAL
+======================================================================
+
+El estado actual ya incluye:
+
+- Modelo local con localId.
+- Persistencia versionada.
+- Migraciones de Configs.
+- Validación de catálogo.
+- Loadout local.
+- Servidor IPC versionado.
+- InventoryHost como cliente de prueba.
+- InventoryBridge interno.
+- Music Kits funcionales.
+- Agentes funcionales.
+- Butterfly con modelo, subclass, animaciones, HUD, killfeed y restauración.
+- Prototipo Panorama desacoplado.
+- Panic y ciclo de vida controlado.
+
+Esto demuestra que el backend y el runtime tienen una base real.
+
+La principal preocupación es de dirección:
+
+- El proyecto está avanzando mucho en aplicación de modelos y estados.
+- La experiencia "NEW ITEM -> colección -> inspect -> equip" todavía no está
+  montada dentro del cliente.
+- Cada nuevo cuchillo, guante o skin aumenta el tamaño del runtime.
+- Si Panorama no recibe una fase propia y un criterio de aceptación, puede
+  quedar indefinidamente como investigación secundaria.
+
+Por lo tanto, antes de ampliar demasiado el runtime, se recomienda cerrar un
+vertical slice visual mínimo dentro de Panorama.
+
+======================================================================
+2. OBJETIVO PRIORITARIO: VERTICAL SLICE "NEW ITEM"
+======================================================================
+
+Antes de implementar todos los cuchillos, guantes y skins, propongo una fase
+específica con este criterio de aceptación:
+
+1. OverlayAI está ejecutándose.
+2. InventoryBridge está conectado al IPC.
+3. El usuario añade un Music Kit desde OverlayAI.
+4. El backend crea y persiste LocalInventoryItem.
+5. pendingRevealItemId queda establecido.
+6. El frontend Panorama recibe inventory.item_added o snapshot.
+7. Aparece una ventana local "NEW ITEM" dentro del entorno de CS2.
+8. La ventana muestra nombre, rareza, imagen y acciones.
+9. Al pulsar "Continuar", el reveal se cierra.
+10. El objeto aparece en una colección Panorama local.
+11. Al pulsar "Equipar", Panorama envía inventory.equip.
+12. OverlayAI aplica el Music ID.
+13. Panorama refleja el estado equipado.
+14. Al pulsar "Desequipar", se restaura el estado original.
+15. Tras reiniciar OverlayAI, la colección reaparece sin duplicados.
+16. Si CS2 destruye el panel, el frontend puede reconstruirlo una sola vez.
+17. Al cerrar o activar Panic, no quedan paneles ni callbacks residuales.
+
+Music Kit debe seguir siendo el primer objeto de esta prueba porque:
+
+- Su modelo local ya existe.
+- Su persistencia ya existe.
+- Su aplicación external ya funciona.
+- No necesita modelo 3D, subclass ni mutaciones complejas.
+- Permite aislar Panorama, ABI, montaje y ciclo de vida.
+
+No usar Butterfly como primer vertical slice Panorama. Butterfly añade demasiadas
+variables y puede ocultar si el problema real está en UI, IPC o runtime.
+
+======================================================================
+3. INVESTIGACIÓN ABI PANORAMA
+======================================================================
+
+La integración Panorama no debe hacerse mediante ensayo ciego de índices de
+vtable.
+
+Antes de llamar cualquier función interna, Codex debe producir un informe
+separado llamado, por ejemplo:
+
+PANORAMA_ABI_RESEARCH_YYYY-MM-DD.md
+
+El informe debe contener:
+
+- Interfaces encontradas.
+- Nombre exacto de CreateInterface.
+- Módulo donde se resuelven.
+- Dirección o mecanismo de resolución.
+- Funciones candidatas observadas.
+- Call sites reales.
+- Convención de llamada.
+- Tipos de argumentos inferidos.
+- Thread/contexto desde el que se invocan.
+- Ownership de paneles.
+- Qué código crea paneles.
+- Qué código ejecuta JavaScript.
+- Qué código destruye paneles.
+- Qué ocurre al cambiar de menú.
+- Qué ocurre al recargar Panorama.
+- Cómo se identifica el panel raíz correcto.
+- Cómo evitar crear dos raíces.
+- Cómo detectar paneles expirados.
+- Cómo retirar callbacks al descargar.
+- Qué partes siguen sin verificar.
+
+Cada función debe tener uno de estos estados:
+
+- Verified
+- PartiallyVerified
+- Hypothesis
+- Rejected
+- NotImplemented
+
+Solo funciones Verified pueden ejecutarse en builds normales.
+
+No aceptar:
+
+- "Probablemente es el índice N".
+- "Esta firma debería funcionar".
+- "Parece que recibe Panel*".
+- "No crasheó una vez, por lo tanto es válida".
+- Copiar ABI de otra build sin volver a verificarla.
+
+======================================================================
+4. REQUISITOS PARA HABILITAR PANORAMA RUNTIME
+======================================================================
+
+PanoramaRuntime debe permanecer deshabilitado salvo que se cumplan todas las
+condiciones siguientes:
+
+- Build de CS2 reconocida.
+- Interfaces correctas disponibles.
+- Firmas con cantidad de coincidencias esperada.
+- Call sites o ABI verificadas.
+- Hilo/contexto de UI validado.
+- Panel raíz de destino encontrado.
+- Protocolo IPC compatible.
+- Snapshot compatible.
+- Recursos XML/CSS/JS compatibles.
+- No existe una instancia anterior activa.
+- El sistema de limpieza está disponible.
+
+Si falla una condición:
+
+- No intentar una ruta alternativa insegura.
+- No probar otros índices automáticamente.
+- No crear paneles.
+- Registrar un diagnóstico claro.
+- Mantener InventoryHost y el frontend simulado utilizables.
+
+El fallo de Panorama no debe desactivar OverlayAI completo ni romper el runtime
+ya funcional.
+
+======================================================================
+5. SEPARACIÓN INTERNA DEL INVENTORYBRIDGE
+======================================================================
+
+InventoryBridge ya no es realmente "mínimo". Actualmente concentra:
+
+- Interfaces.
+- Firmas.
+- FrameStage.
+- IPC.
+- Modelos.
+- Agents.
+- Knife runtime.
+- HUD.
+- Eventos.
+- Killfeed.
+- Restauración.
+- Panorama futuro.
+
+Antes de añadir muchos tipos nuevos, dividir InventoryBridge.cpp por
+responsabilidad.
+
+Estructura sugerida:
+
+OverlayAI.InventoryBridge/
+    BridgeMain.cpp
+    BridgeRuntime.cpp/.h
+    BuildCompatibility.cpp/.h
+    SnapshotClient.cpp/.h
+    SignatureRegistry.cpp/.h
+    EntityContext.cpp/.h
+    RestoreManager.cpp/.h
+    AgentRuntime.cpp/.h
+    KnifeRuntime.cpp/.h
+    WeaponSkinRuntime.cpp/.h
+    GloveRuntime.cpp/.h
+    HudRuntime.cpp/.h
+    EventRuntime.cpp/.h
+    PanoramaRuntime.cpp/.h
+    PanoramaAbi.cpp/.h
+    PanoramaPanelRegistry.cpp/.h
+    BridgeLogging.cpp/.h
+
+No es obligatorio usar exactamente estos nombres, pero sí separar:
+
+- Resolución de build/firmas.
+- Transporte IPC.
+- Estado de entidades.
+- Aplicación por categoría.
+- Restauración.
+- HUD/eventos.
+- Panorama.
+
+Evitar que KnifeRuntime conozca detalles del named pipe.
+Evitar que PanoramaRuntime escriba memoria de entidades.
+Evitar que IPC conozca funciones internas de CS2.
+Evitar que RestoreManager dependa de ImGui.
+
+======================================================================
+6. COMPATIBILIDAD DE BUILD
+======================================================================
+
+Añadir un descriptor explícito de compatibilidad.
+
+Ejemplo conceptual:
+
+struct RuntimeCompatibilityInfo
+{
+    uint32_t protocolVersion;
+    uint32_t storageVersion;
+    uint64_t gameBuildId;
+    uint64_t clientTimestamp;
+    uint64_t engineTimestamp;
+    uint64_t offsetsHash;
+    uint64_t signaturesHash;
+    uint32_t catalogVersion;
+    uint32_t bridgeBuildVersion;
+};
+
+El snapshot y el log deben indicar al menos:
+
+- Build del juego.
+- Timestamp de client.dll.
+- Timestamp de engine2.dll.
+- Hash o versión de offsets.
+- Hash o versión de firmas.
+- Versión del protocolo.
+- Versión del bridge.
+- Versión del catálogo.
+
+Cada feature interna debe declarar sus requisitos.
+
+Ejemplo conceptual:
+
+ButterflyRuntime:
+- Source2Client002
+- FrameStage hook validado
+- SetModel verificado
+- UpdateSubclass verificado
+- offsetsHash compatible
+- subclass table compatible
+
+PanoramaRuntime:
+- PanoramaUIEngine001
+- ABI de paneles verificada
+- scheduler/contexto de UI verificado
+- recursos compatibles
+
+Si una build cambia, la función afectada debe deshabilitarse de forma aislada.
+
+No tratar "la DLL cargó" como sinónimo de "todas las features son compatibles".
+
+======================================================================
+7. MATRIZ DE REGRESIÓN
+======================================================================
+
+Crear un archivo:
+
+INVENTORY_RUNTIME_REGRESSION_MATRIX.md
+
+Mantener una tabla por feature:
+
+Feature | Equip | Unequip | Respawn | Death | Bot | Drop/Pick |
+Restart | Panic | Config Load | Reconnect | Invalid Offset
+
+Ejemplo:
+
+Music Kit
+- Equip
+- Unequip
+- Save/Load
+- Controller change
+- Bot control
+- Panic
+- IPC reconnect
+
+Agent
+- Equip T
+- Equip CT
+- Respawn
+- Death
+- Spectator
+- Bot control
+- Panic
+- Invalid pawn
+
+Butterfly
+- Equip
+- Switch weapon
+- Inspect
+- Death
+- Respawn
+- Drop
+- Pick up
+- Bot
+- mp_restartgame
+- Panic
+- Native Butterfly
+- Invalid handle
+- Entity reuse
+- Config change
+- IPC disconnect
+
+Panorama
+- Open inventory
+- Close inventory
+- Change tab
+- Change resolution
+- Rebuild root
+- IPC disconnect
+- Overlay restart
+- Bridge unload
+- Pending reveal recovery
+- Duplicate event
+- Invalid payload
+- Panic
+
+Cada cambio importante debe indicar qué filas fueron repetidas.
+
+======================================================================
+8. ESTADO Y CICLO DE VIDA DE PANORAMA
+======================================================================
+
+PanoramaRuntime necesita una máquina de estados explícita.
+
+Ejemplo conceptual:
+
+Disabled
+WaitingForCompatibility
+WaitingForUiContext
+Mounting
+Mounted
+Rebuilding
+Unmounting
+Failed
+
+No usar únicamente bools dispersos como:
+
+isMounted
+needsRebuild
+panelExists
+isClosing
+hasRoot
+
+El registro de paneles debe conservar:
+
+- Identificador lógico.
+- Handle o wrapper interno.
+- Generación.
+- Estado.
+- Parent esperado.
+- Fecha de creación.
+- Última validación.
+- Si pertenece a OverlayAI.
+
+Nunca asumir que un puntero Panel* sigue siendo válido después de:
+
+- Cambiar de mapa.
+- Volver al menú.
+- Cambiar de pestaña.
+- Recargar Panorama.
+- Cambiar resolución.
+- Cerrar un popup.
+- Recibir actualización de inventario.
+- Reiniciar UI.
+
+Debe existir una función única y segura de desmontaje.
+
+======================================================================
+9. NEW ITEM: ESTADO TRANSACCIONAL
+======================================================================
+
+pendingRevealItemId ya existe y es correcto, pero debe definirse formalmente.
+
+Estados sugeridos para una adquisición:
+
+- Added
+- PendingReveal
+- RevealVisible
+- RevealAcknowledged
+- AvailableInCollection
+- Removed
+
+Reglas:
+
+- El item se persiste antes de abrir el reveal.
+- El reveal nunca es la fuente de verdad.
+- Si Panorama no está disponible, el item sigue existiendo.
+- Si CS2 se cierra durante el reveal, pendingRevealItemId permanece.
+- Al reconectar, Panorama puede volver a mostrar el reveal pendiente.
+- inventory.close_reveal debe ser idempotente.
+- Cerrar dos veces no debe borrar otro reveal.
+- Un request_id duplicado no debe repetir la adquisición.
+- El frontend no debe crear dos tarjetas para el mismo localId.
+- La cola de reveals debe tener un orden determinista.
+- Eliminar un item pendiente debe retirar su reveal de la cola.
+- Equipar desde el reveal debe producir la misma acción que equipar desde la
+  colección.
+
+No acoplar pendingRevealItemId a un Steam item ID ni faux ID.
+
+======================================================================
+10. FRONTEND PANORAMA: FUENTE DE VERDAD
+======================================================================
+
+OverlayAI sigue siendo la fuente de verdad.
+
+Panorama no debe mantener una segunda colección autoritativa.
+
+Panorama puede tener:
+
+- Snapshot de presentación.
+- Índice de tarjetas visibles.
+- Estado de filtros.
+- Selección actual.
+- Estado de reveal.
+- Cache visual.
+
+Pero toda mutación debe volver al backend:
+
+- Equip
+- Unequip
+- Remove
+- Duplicate
+- Close reveal
+- Refresh
+- Inspect
+
+Tras una acción, Panorama debe esperar:
+
+- Respuesta estructurada.
+- Evento correspondiente.
+- Snapshot actualizado cuando sea necesario.
+
+No aplicar optimismo irreversible.
+
+Ejemplo:
+
+El usuario pulsa Remove.
+Panorama puede mostrar estado "pending".
+La tarjeta solo se elimina definitivamente al recibir item_removed o snapshot.
+
+======================================================================
+11. INSPECT
+======================================================================
+
+inventory.inspect debe permanecer claramente separado en tres niveles:
+
+Nivel A - Inspect local simple
+- Imagen grande.
+- Nombre.
+- Wear.
+- Seed.
+- StatTrak.
+- Stickers.
+- Descripción.
+- Sin modelo 3D.
+
+Nivel B - Preview compatible mediante Faux Item ID
+- Solo si una función verificada acepta faux IDs.
+- Debe existir fallback.
+- No asumir que el faux ID representa todos los atributos.
+
+Nivel C - Inspect 3D completo
+- Solo cuando la ABI, modelo, contexto y ciclo de vida estén verificados.
+- No bloquear el avance de NEW ITEM y colección local.
+
+La primera versión de Panorama no debe depender de un inspect 3D completo.
+
+======================================================================
+12. SOCACHE
+======================================================================
+
+Mantener SOCache fuera de implementación.
+
+No insertar CEconItem falsos.
+No registrar shared objects falsos.
+No asumir ownership.
+No notificar listeners con objetos incompletos.
+No usar SOCache para resolver el primer "NEW ITEM".
+
+SOCache puede seguir investigándose en un documento separado, pero no debe
+convertirse en requisito de Panorama.
+
+La experiencia deseada puede lograrse con:
+
+- localId
+- inventario local
+- frontend Panorama
+- faux IDs donde sean compatibles
+- runtime de aplicación separado
+
+======================================================================
+13. ORDEN RECOMENDADO DE TRABAJO
+======================================================================
+
+Orden sugerido actualizado:
+
+FASE A
+- Completar refactor interno de InventoryBridge.
+- Añadir descriptor de build y compatibilidad.
+- Crear matriz de regresión.
+
+FASE B
+- Investigación ABI Panorama documentada.
+- Sin ejecutar funciones no verificadas.
+- Confirmar scheduler/contexto de UI.
+- Confirmar creación y destrucción de un panel mínimo.
+
+FASE C
+- Montar un panel Panorama mínimo.
+- Texto estático.
+- Crear, encontrar, validar y destruir.
+- Probar cambio de pestaña, menú y resolución.
+
+FASE D
+- Vertical slice Music Kit:
+  NEW ITEM -> colección -> equip -> unequip.
+
+FASE E
+- Colección Panorama completa.
+- Filtros.
+- Detalles.
+- Persistencia.
+- Reconexión.
+- Rebuild.
+
+FASE F
+- Inspect local.
+- Faux ID opcional.
+- Preview con fallback.
+
+FASE G
+- Completar Butterfly.
+- Quality.
+- Paint/wear/seed/StatTrak.
+- Restauración atómica.
+
+FASE H
+- Generalizar cuchillos.
+
+FASE I
+- Guantes y skins.
+
+Este orden puede ajustarse si existen dependencias reales, pero no debe seguir
+postergando indefinidamente el vertical slice Panorama.
+
+======================================================================
+14. CRITERIOS DE NO REGRESIÓN
+======================================================================
+
+Antes de aceptar una nueva fase:
+
+- Compila Release|x64.
+- InventoryTests pasa.
+- InventoryHost sigue funcionando.
+- Music Kit equipa y restaura.
+- Agent runtime no regresa.
+- Butterfly no pierde animaciones.
+- HUD no genera duplicados.
+- Killfeed solo modifica eventos locales válidos.
+- Panic retira todos los hooks.
+- No quedan handles abiertos.
+- No quedan threads.
+- No quedan paneles Panorama.
+- Configs anteriores cargan.
+- localId no se reutiliza.
+- IPC rechaza mensajes inválidos.
+- Un snapshot idéntico no se republica.
+- La feature nueva se desactiva de forma aislada si falla compatibilidad.
+
+======================================================================
+15. INSTRUCCIÓN PARA LA PRÓXIMA RESPUESTA DE CODEX
+======================================================================
+
+No implementar todavía todo lo anterior.
+
+Responder primero con:
+
+1. Qué partes de esta revisión acepta.
+2. Qué partes considera innecesarias y por qué.
+3. Estado actual real de InventoryBridge.cpp:
+   - tamaño;
+   - responsabilidades;
+   - acoplamientos;
+   - candidatos de refactor.
+4. Qué información falta para verificar Panorama ABI.
+5. Qué interfaces y call sites ya están confirmados.
+6. Qué función mínima propone para:
+   - crear un panel;
+   - adjuntarlo;
+   - ejecutar JS;
+   - destruirlo.
+7. Cómo garantiza el thread/contexto correcto.
+8. Cómo detectará una UI reload.
+9. Cómo evitará raíces duplicadas.
+10. Cómo persistirá y reanudará pendingRevealItemId.
+11. Plan de un vertical slice Music Kit.
+12. Lista exacta de archivos a crear o modificar.
+13. Riesgos y criterios de rollback.
+14. Qué pruebas ejecutará.
+15. Qué partes dejará explícitamente como NotImplemented.
+
+No escribir llamadas internas nuevas hasta presentar este análisis.
+
+======================================================================
+16. PRINCIPIO FINAL
+======================================================================
+
+El runtime actual es valioso, pero no debe convertirse en el objetivo completo.
+
+La definición de éxito de OverlayAI Inventory Changer sigue siendo:
+
+"El usuario añade un objeto local, CS2 muestra NEW ITEM, el objeto aparece en
+una colección Panorama integrada, puede inspeccionarse y equiparse, y todo se
+restaura sin modificar ownership real."
+
+FIN DEL DOCUMENTO.

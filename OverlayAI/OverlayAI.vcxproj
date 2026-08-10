@@ -1,0 +1,275 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>17.0</VCProjectVersion>
+    <Keyword>Win32Proj</Keyword>
+    <ProjectGuid>{8fc759ba-27e7-4443-9876-bf2a7e44281d}</ProjectGuid>
+    <RootNamespace>OverlayAI</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v143</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v143</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v143</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v143</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="Shared">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <AdditionalIncludeDirectories>$(ProjectDir);$(ProjectDir)src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <UACExecutionLevel>RequireAdministrator</UACExecutionLevel>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <AdditionalIncludeDirectories>$(ProjectDir);$(ProjectDir)src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <UACExecutionLevel>RequireAdministrator</UACExecutionLevel>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>$(ProjectDir);$(ProjectDir)src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <UACExecutionLevel>RequireAdministrator</UACExecutionLevel>
+      <AdditionalDependencies>d3d11.lib;dxgi.lib;d3dcompiler.lib;advapi32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>$(ProjectDir);$(ProjectDir)src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <UACExecutionLevel>RequireAdministrator</UACExecutionLevel>
+      <AdditionalDependencies>d3d11.lib;dxgi.lib;d3dcompiler.lib;advapi32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="Glow.cpp" />
+    <ClCompile Include="imgui.cpp" />
+    <ClCompile Include="imgui_draw.cpp" />
+    <ClCompile Include="imgui_impl_dx11.cpp" />
+    <ClCompile Include="imgui_impl_win32.cpp" />
+    <ClCompile Include="imgui_tables.cpp" />
+    <ClCompile Include="imgui_widgets.cpp" />
+    <ClCompile Include="src\Aimlock.cpp" />
+    <ClCompile Include="src\AntiFlash.cpp" />
+    <ClCompile Include="src\AntiSmoke.cpp" />
+    <ClCompile Include="src\BombInfo.cpp" />
+    <ClCompile Include="src\OtherGlow.cpp" />
+    <ClCompile Include="src\RadarHack.cpp" />
+    <ClCompile Include="src\Crosshair.cpp" />
+    <ClCompile Include="src\SpectatorList.cpp" />
+    <ClCompile Include="src\GrenadeTrajectory.cpp" />
+    <ClCompile Include="src\InventoryCatalog.cpp" />
+    <ClCompile Include="src\InventoryChanger.cpp" />
+    <ClCompile Include="src\InventoryIpcController.cpp" />
+    <ClCompile Include="src\InventoryIpcServer.cpp" />
+    <ClCompile Include="src\InventoryLog.cpp" />
+    <ClCompile Include="src\InventoryPersistence.cpp" />
+    <ClCompile Include="src\InventoryProtocol.cpp" />
+    <ClCompile Include="src\InventoryPreview.cpp" />
+    <ClCompile Include="src\InventoryStore.cpp" />
+    <ClCompile Include="src\InventoryValidator.cpp" />
+    <ClCompile Include="src\Localization.cpp" />
+    <ClCompile Include="src\Config.cpp" />
+    <ClCompile Include="src\ConsoleUi.cpp" />
+    <ClCompile Include="src\DumperValidator.cpp" />
+    <ClCompile Include="src\Draw.cpp" />
+    <ClCompile Include="src\Entity.cpp" />
+    <ClCompile Include="src\Esp.cpp" />
+    <ClCompile Include="src\Main.cpp" />
+    <ClCompile Include="src\ModelDiagnostics.cpp" />
+    <ClCompile Include="src\Bhop.cpp" />
+    <ClCompile Include="src\PatchRestore.cpp" />
+    <ClCompile Include="src\Skeleton.cpp" />
+    <ClCompile Include="src\SmokeColor.cpp" />
+    <ClCompile Include="src\Stats.cpp" />
+    <ClCompile Include="src\TextFonts.cpp" />
+    <ClCompile Include="src\UiAppearance.cpp" />
+    <ClCompile Include="src\Triggerbot.cpp" />
+    <ClCompile Include="src\WeaponIcons.cpp" />
+    <ClCompile Include="src\WeaponInfo.cpp" />
+    <ClCompile Include="src\WorldTransform.cpp" />
+    <ClCompile Include="src\Memory.cpp" />
+    <ClCompile Include="src\Menu.cpp" />
+    <ClCompile Include="src\Offsets.cpp" />
+    <ClCompile Include="src\Overlay.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Glow.h" />
+    <ClInclude Include="src\Aimlock.h" />
+    <ClInclude Include="src\AntiFlash.h" />
+    <ClInclude Include="src\AntiSmoke.h" />
+    <ClInclude Include="src\BombInfo.h" />
+    <ClInclude Include="src\OtherGlow.h" />
+    <ClInclude Include="src\RadarHack.h" />
+    <ClInclude Include="src\Crosshair.h" />
+    <ClInclude Include="src\SpectatorList.h" />
+    <ClInclude Include="src\GrenadeTrajectory.h" />
+    <ClInclude Include="src\InventoryCatalog.h" />
+    <ClInclude Include="src\InventoryChanger.h" />
+    <ClInclude Include="src\InventoryIpcController.h" />
+    <ClInclude Include="src\InventoryIpcServer.h" />
+    <ClInclude Include="src\InventoryLog.h" />
+    <ClInclude Include="src\PanoramaBridgeContract.h" />
+    <ClInclude Include="src\InventoryPersistence.h" />
+    <ClInclude Include="src\InventoryProtocol.h" />
+    <ClInclude Include="src\InventoryPreview.h" />
+    <ClInclude Include="src\InventoryStore.h" />
+    <ClInclude Include="src\InventoryTypes.h" />
+    <ClInclude Include="src\InventoryValidator.h" />
+    <ClInclude Include="src\Localization.h" />
+    <ClInclude Include="src\Config.h" />
+    <ClInclude Include="src\ConsoleUi.h" />
+    <ClInclude Include="src\DumperValidator.h" />
+    <ClInclude Include="src\Draw.h" />
+    <ClInclude Include="src\Entity.h" />
+    <ClInclude Include="src\Esp.h" />
+    <ClInclude Include="src\PatchRestore.h" />
+    <ClInclude Include="src\Skeleton.h" />
+    <ClInclude Include="src\SmokeColor.h" />
+    <ClInclude Include="src\Stats.h" />
+    <ClInclude Include="src\TextFonts.h" />
+    <ClInclude Include="src\UiAppearance.h" />
+    <ClInclude Include="src\WorldTransform.h" />
+    <ClInclude Include="src\Memory.h" />
+    <ClInclude Include="src\ModelDiagnostics.h" />
+    <ClInclude Include="src\Menu.h" />
+    <ClInclude Include="src\Offsets.h" />
+    <ClInclude Include="src\Overlay.h" />
+    <ClInclude Include="src\Bhop.h" />
+    <ClInclude Include="src\Triggerbot.h" />
+    <ClInclude Include="src\Types.h" />
+    <ClInclude Include="src\WeaponIcons.h" />
+    <ClInclude Include="src\WeaponInfo.h" />
+    <ClInclude Include="ide_hints.h" />
+    <ClInclude Include="imconfig.h" />
+    <ClInclude Include="imgui.h" />
+    <ClInclude Include="imgui_impl_dx11.h" />
+    <ClInclude Include="imgui_impl_win32.h" />
+    <ClInclude Include="imgui_internal.h" />
+    <ClInclude Include="imstb_rectpack.h" />
+    <ClInclude Include="imstb_textedit.h" />
+    <ClInclude Include="imstb_truetype.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="OverlayAI.rc" />
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="resources\OverlayAI.icon.ico" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="src\InventoryCatalogData.inc" />
+    <None Include="third_party\nlohmann\json.hpp" />
+    <None Include="third_party\nlohmann\LICENSE.MIT" />
+    <None Include="tools\TestInventoryIpc.ps1" />
+    <None Include="tools\ValidatePanoramaPrototype.ps1" />
+    <None Include="tools\TestPanoramaFrontend.js" />
+    <None Include="panorama\layout\overlayai_local_inventory.xml" />
+    <None Include="panorama\styles\overlayai_local_inventory.css" />
+    <None Include="panorama\scripts\overlayai_local_inventory.js" />
+    <None Include="panorama\PANORAMA_BRIDGE_CONTRACT.md" />
+    <None Include="panorama\PANORAMA_MOUNT_RESEARCH.md" />
+    <None Include="panorama\THIRD_PARTY_INVENTORY_AUDIT.md" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <Target Name="CopyPanoramaResources" AfterTargets="Build">
+    <ItemGroup>
+      <PanoramaResource Include="$(ProjectDir)panorama\**\*.*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(PanoramaResource)" DestinationFiles="@(PanoramaResource->'$(OutDir)panorama\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
+  </Target>
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

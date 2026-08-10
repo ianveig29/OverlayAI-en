@@ -1,0 +1,568 @@
+.OverlayAILocalInventoryRoot {
+    width: 100%;
+    height: 100%;
+    horizontal-align: center;
+    vertical-align: center;
+    opacity: 0.0;
+    transform: translate3d(0px, 20px, 0px);
+    transition-property: opacity, transform;
+    transition-duration: 0.22s;
+    font-family: Stratum2, Arial;
+}
+
+.OverlayAILocalInventoryRoot.Mounted {
+    opacity: 1.0;
+    transform: translate3d(0px, 0px, 0px);
+}
+
+.OverlayAIBackdrop {
+    width: 100%;
+    height: 100%;
+    background-color: gradient(linear, 0% 0%, 100% 100%, from(#071015ed), color-stop(0.52, #15232de8), to(#020506f8));
+}
+
+.OverlayAIRevealView,
+.OverlayAICollectionView {
+    width: 100%;
+    height: 100%;
+    visibility: collapse;
+}
+
+.OverlayAILocalInventoryRoot.RevealMode .OverlayAIRevealView,
+.OverlayAILocalInventoryRoot.CollectionMode .OverlayAICollectionView {
+    visibility: visible;
+}
+
+.OverlayAIRevealCard {
+    width: 820px;
+    height: 470px;
+    horizontal-align: center;
+    vertical-align: center;
+    flow-children: down;
+    background-color: gradient(linear, 0% 0%, 0% 100%, from(#1b2931fa), to(#0a1015ff));
+    border: 1px solid #60727b88;
+    box-shadow: #000000cc 0px 18px 52px 0px;
+}
+
+.OverlayAITopRail {
+    width: 100%;
+    height: 58px;
+    padding: 0px 26px;
+    background-color: #111b21ee;
+    border-bottom: 2px solid #d7a635;
+}
+
+.OverlayAIKicker {
+    vertical-align: center;
+    color: #f3f0e7;
+    font-size: 21px;
+    font-weight: bold;
+    letter-spacing: 2px;
+}
+
+.OverlayAIConnection {
+    horizontal-align: right;
+    vertical-align: center;
+    padding: 4px 9px 3px 9px;
+    color: #d8b75d;
+    background-color: #d7a63518;
+    border: 1px solid #d7a63555;
+    font-size: 13px;
+    letter-spacing: 1px;
+}
+
+.OverlayAIContent {
+    width: 100%;
+    height: 350px;
+    flow-children: right;
+    padding: 26px;
+}
+
+.OverlayAIArtStage {
+    width: 330px;
+    height: 296px;
+    background-color: gradient(radial, 50% 44%, 0% 0%, 66% 66%, from(#d7a63546), color-stop(0.42, #35505c55), to(#0a1117ff));
+    border: 1px solid #7d909977;
+    overflow: clip;
+}
+
+.OverlayAIRecordOuter {
+    width: 232px;
+    height: 232px;
+    horizontal-align: center;
+    vertical-align: center;
+    border-radius: 50%;
+    background-color: #050708;
+    border: 2px solid #91a3aa33;
+    box-shadow: #000000aa 0px 9px 20px 0px;
+}
+
+.OverlayAIRecordInner {
+    width: 92px;
+    height: 92px;
+    horizontal-align: center;
+    vertical-align: center;
+    border-radius: 50%;
+    background-color: gradient(radial, 50% 50%, 0% 0%, 55% 55%, from(#e0b74e), to(#805f18));
+}
+
+.OverlayAIRecordLabel {
+    width: 44px;
+    height: 44px;
+    horizontal-align: center;
+    vertical-align: center;
+    border-radius: 50%;
+    background-color: #17252c;
+}
+
+.OverlayAIRecordLabel Label {
+    horizontal-align: center;
+    vertical-align: center;
+    color: #f3f0e7;
+    font-size: 15px;
+    font-weight: bold;
+}
+
+.OverlayAIItemImage {
+    width: 284px;
+    height: 252px;
+    horizontal-align: center;
+    vertical-align: center;
+    opacity: 0.0;
+}
+
+.OverlayAIItemImage.HasImage,
+.OverlayAICollectionItemImage.HasImage,
+.OverlayAICollectionCardImage.HasImage {
+    opacity: 1.0;
+}
+
+.OverlayAIRarityLine {
+    width: 100%;
+    height: 5px;
+    vertical-align: bottom;
+    background-color: #4b69ff;
+    box-shadow: #4b69ff88 0px -3px 12px 0px;
+}
+
+.OverlayAIItemDetails {
+    width: fill-parent-flow(1.0);
+    height: 100%;
+    margin-left: 30px;
+    flow-children: down;
+}
+
+.OverlayAIType {
+    color: #d7a635;
+    font-size: 15px;
+    font-weight: bold;
+    letter-spacing: 2px;
+}
+
+.OverlayAIItemName {
+    width: 100%;
+    margin-top: 9px;
+    color: #f4f6f6;
+    font-size: 31px;
+    font-weight: bold;
+    text-shadow: 0px 2px 5px 2.0 #000000aa;
+}
+
+.OverlayAIItemRarity {
+    margin-top: 10px;
+    color: #718cff;
+    font-size: 15px;
+    letter-spacing: 1px;
+}
+
+.OverlayAIItemStatus {
+    width: 100%;
+    margin-top: 23px;
+    color: #aeb9bd;
+    font-size: 16px;
+    line-height: 22px;
+}
+
+.OverlayAIActions {
+    width: 100%;
+    height: 50px;
+    vertical-align: bottom;
+    flow-children: right;
+}
+
+.OverlayAIPrimaryButton,
+.OverlayAISecondaryButton,
+.OverlayAIQuietButton,
+.OverlayAIIconButton,
+.OverlayAIDangerButton {
+    height: 42px;
+    padding: 0px 18px;
+    margin-right: 10px;
+    border: 1px solid #ffffff22;
+    transition-property: brightness, background-color;
+    transition-duration: 0.12s;
+}
+
+.OverlayAIPrimaryButton {
+    background-color: gradient(linear, 0% 0%, 0% 100%, from(#d7a635), to(#9f751b));
+}
+
+.OverlayAISecondaryButton {
+    background-color: #35444c;
+}
+
+.OverlayAIQuietButton,
+.OverlayAIIconButton {
+    background-color: #172127;
+    border: 1px solid #60727b55;
+}
+
+.OverlayAIDangerButton {
+    background-color: #4b1e20;
+    border: 1px solid #d85f5f66;
+}
+
+.OverlayAIPrimaryButton:hover,
+.OverlayAISecondaryButton:hover,
+.OverlayAIQuietButton:hover,
+.OverlayAIIconButton:hover,
+.OverlayAIDangerButton:hover {
+    brightness: 1.35;
+}
+
+.Disabled {
+    saturation: 0.0;
+    opacity: 0.42;
+}
+
+.OverlayAIPrimaryButton Label,
+.OverlayAISecondaryButton Label,
+.OverlayAIQuietButton Label,
+.OverlayAIIconButton Label,
+.OverlayAIDangerButton Label {
+    horizontal-align: center;
+    vertical-align: center;
+    color: #ffffff;
+    font-size: 15px;
+    font-weight: bold;
+}
+
+.OverlayAIFooter {
+    width: 100%;
+    height: fill-parent-flow(1.0);
+    padding: 0px 26px;
+    background-color: #070b0eff;
+    border-top: 1px solid #ffffff12;
+}
+
+.OverlayAIFooter Label {
+    vertical-align: center;
+    color: #65747a;
+    font-size: 12px;
+    letter-spacing: 1px;
+}
+
+#OverlayAIRevealItemIdentity {
+    horizontal-align: right;
+}
+
+.OverlayAICollectionShell {
+    width: 1060px;
+    height: 650px;
+    horizontal-align: center;
+    vertical-align: center;
+    flow-children: down;
+    background-color: gradient(linear, 0% 0%, 0% 100%, from(#18262efa), to(#080d11ff));
+    border: 1px solid #61768099;
+    box-shadow: #000000d9 0px 22px 60px 0px;
+}
+
+.OverlayAICollectionHeader {
+    width: 100%;
+    height: 82px;
+    padding: 14px 24px;
+    background-color: #0d171dee;
+    border-bottom: 2px solid #d7a635;
+}
+
+.OverlayAICollectionTitleBlock {
+    flow-children: down;
+    vertical-align: center;
+}
+
+.OverlayAICollectionEyebrow {
+    color: #d7a635;
+    font-size: 12px;
+    font-weight: bold;
+    letter-spacing: 2px;
+}
+
+.OverlayAICollectionTitle {
+    color: #f3f5f3;
+    font-size: 27px;
+    font-weight: bold;
+    letter-spacing: 1px;
+}
+
+.OverlayAICollectionCount {
+    horizontal-align: center;
+    vertical-align: center;
+    color: #8b9ba2;
+    font-size: 14px;
+    letter-spacing: 1px;
+}
+
+.OverlayAICollectionBody {
+    width: 100%;
+    height: 516px;
+    flow-children: right;
+}
+
+.OverlayAICollectionBrowser {
+    width: 470px;
+    height: 100%;
+    flow-children: down;
+    background-color: #0b1216d9;
+    border-right: 1px solid #ffffff18;
+}
+
+.OverlayAICollectionBrowserRail {
+    width: 100%;
+    height: 58px;
+    padding: 8px 18px;
+}
+
+.OverlayAICollectionBrowserRail > Label {
+    vertical-align: center;
+    color: #d4dcdf;
+    font-size: 15px;
+    font-weight: bold;
+    letter-spacing: 1px;
+}
+
+.OverlayAICollectionBrowserRail .OverlayAIIconButton {
+    width: 96px;
+    height: 34px;
+    horizontal-align: right;
+    margin-right: 0px;
+}
+
+.OverlayAICollectionBrowserRail .OverlayAIIconButton Label {
+    font-size: 12px;
+}
+
+.OverlayAICollectionSearch {
+    width: 446px;
+    height: 38px;
+    margin: 0px 12px 8px 12px;
+    padding: 7px 12px;
+    color: #e4e9e8;
+    background-color: #05090caa;
+    border: 1px solid #61768055;
+    font-size: 14px;
+}
+
+.OverlayAIFilterRow {
+    width: 100%;
+    height: 38px;
+    padding: 0px 12px 7px 12px;
+    flow-children: right;
+}
+
+.OverlayAIFilterButton {
+    width: 71px;
+    height: 30px;
+    margin-right: 3px;
+    background-color: #172127;
+    border: 1px solid #ffffff14;
+}
+
+.OverlayAIFilterButton.Selected {
+    background-color: #9f751b;
+    border: 1px solid #d7a635aa;
+}
+
+.OverlayAIFilterButton Label {
+    horizontal-align: center;
+    vertical-align: center;
+    color: #c6d0d3;
+    font-size: 9px;
+    font-weight: bold;
+}
+
+.OverlayAICollectionList {
+    width: 100%;
+    height: fill-parent-flow(1.0);
+    padding: 0px 12px 12px 12px;
+    flow-children: down;
+    overflow: squish scroll;
+}
+
+.OverlayAICollectionCard {
+    width: 100%;
+    height: 92px;
+    margin-bottom: 7px;
+    flow-children: right;
+    background-color: #172229d9;
+    border: 1px solid #ffffff12;
+    transition-property: brightness, background-color, border;
+    transition-duration: 0.12s;
+}
+
+.OverlayAICollectionCard:hover {
+    brightness: 1.25;
+    background-color: #20323bd9;
+}
+
+.OverlayAICollectionCard.Selected {
+    background-color: #263b46ee;
+    border: 1px solid #d7a635aa;
+}
+
+.OverlayAICollectionCard.Equipped {
+    box-shadow: #d7a63555 0px 0px 10px 0px;
+}
+
+.OverlayAICollectionCardImage {
+    width: 108px;
+    height: 84px;
+    vertical-align: center;
+    opacity: 0.18;
+}
+
+.OverlayAICollectionCardCopy {
+    width: fill-parent-flow(1.0);
+    height: 100%;
+    padding: 12px 8px;
+    flow-children: down;
+}
+
+.OverlayAICollectionCardName {
+    width: 100%;
+    color: #f2f4f3;
+    font-size: 17px;
+    font-weight: bold;
+    text-overflow: ellipsis;
+}
+
+.OverlayAICollectionCardRarity {
+    margin-top: 3px;
+    color: #8fa7ff;
+    font-size: 12px;
+}
+
+.OverlayAICollectionCardIdentity {
+    margin-top: 5px;
+    color: #63747b;
+    font-size: 10px;
+    letter-spacing: 1px;
+}
+
+.OverlayAICollectionCardMarker {
+    width: 5px;
+    height: 100%;
+    horizontal-align: right;
+    background-color: #4b69ff;
+}
+
+.OverlayAICollectionDetail {
+    width: fill-parent-flow(1.0);
+    height: 100%;
+    padding: 24px 30px;
+    flow-children: down;
+}
+
+.OverlayAICollectionImageStage {
+    width: 100%;
+    height: 245px;
+    background-color: gradient(radial, 50% 45%, 0% 0%, 62% 62%, from(#d7a63535), color-stop(0.48, #30485255), to(#0b1217ee));
+    border: 1px solid #71858d55;
+    overflow: clip;
+}
+
+.OverlayAICollectionRecord {
+    width: 190px;
+    height: 190px;
+    opacity: 0.7;
+}
+
+.OverlayAICollectionItemImage {
+    width: 340px;
+    height: 220px;
+    horizontal-align: center;
+    vertical-align: center;
+    opacity: 0.0;
+}
+
+.OverlayAICollectionDetail > .OverlayAIType {
+    margin-top: 18px;
+}
+
+.OverlayAICollectionItemName {
+    width: 100%;
+    margin-top: 5px;
+    color: #f3f5f4;
+    font-size: 26px;
+    font-weight: bold;
+    text-overflow: ellipsis;
+}
+
+.OverlayAICollectionItemMeta {
+    width: 100%;
+    margin-top: 12px;
+    color: #a7b4b9;
+    font-size: 15px;
+    line-height: 20px;
+}
+
+.OverlayAICollectionItemIdentity {
+    margin-top: 9px;
+    color: #63747b;
+    font-size: 11px;
+    letter-spacing: 1px;
+}
+
+.OverlayAICollectionActions {
+    width: 100%;
+    height: 44px;
+    vertical-align: bottom;
+    flow-children: right;
+}
+
+.OverlayAICollectionActions .OverlayAIPrimaryButton,
+.OverlayAICollectionActions .OverlayAISecondaryButton,
+.OverlayAICollectionActions .OverlayAIQuietButton,
+.OverlayAICollectionActions .OverlayAIDangerButton {
+    padding: 0px 10px;
+    margin-right: 6px;
+}
+
+.OverlayAICollectionActions Label {
+    font-size: 11px;
+}
+
+.OverlayAICollectionActions .OverlayAIQuietButton {
+    horizontal-align: right;
+    margin-right: 0px;
+}
+
+.OverlayAICollectionFooter {
+    width: 100%;
+    height: fill-parent-flow(1.0);
+    padding: 0px 22px;
+    background-color: #060a0dff;
+    border-top: 1px solid #ffffff12;
+}
+
+.OverlayAICollectionFooter Label {
+    vertical-align: center;
+    color: #728188;
+    font-size: 12px;
+}
+
+.OverlayAICollectionFooter .OverlayAILocalOnly {
+    horizontal-align: right;
+    color: #d7a635;
+    font-weight: bold;
+    letter-spacing: 2px;
+}

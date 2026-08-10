@@ -1,0 +1,298 @@
+CONTEXTO DE TRASPASO - MUSIC KITS / INVENTORY CHANGER
+Fecha: 2026-08-02
+
+======================================================================
+1. OBJETIVO DEL NUEVO CHAT
+======================================================================
+
+Continuar exclusivamente con Music Kits sin perder el estado tecnico del
+Inventory Changer. La prioridad pendiente es conseguir que el Music Kit local
+equipado tambien afecte al menu principal de CS2, conservando el funcionamiento
+ya validado dentro de una partida y toda la limpieza del ciclo de vida.
+
+No comenzar reescribiendo el Inventory Changer. Primero leer este documento y
+los archivos indicados. La mayor parte del flujo de catalogo, coleccion, Configs,
+IPC, Panorama y aplicacion en partida ya funciona.
+
+======================================================================
+2. RUTAS IMPORTANTES
+======================================================================
+
+Proyecto principal y solucion:
+C:\Users\ariel\Desktop\Cosas cs2\Mi cheat 0\OverlayAI
+C:\Users\ariel\Desktop\Cosas cs2\Mi cheat 0\OverlayAI\OverlayAI.sln
+
+Codigo del Overlay:
+C:\Users\ariel\Desktop\Cosas cs2\Mi cheat 0\OverlayAI\OverlayAI\src
+
+Codigo del bridge interno:
+C:\Users\ariel\Desktop\Cosas cs2\Mi cheat 0\OverlayAI\OverlayAI.InventoryBridge
+
+Runtime que utiliza el usuario:
+C:\Users\ariel\Desktop\Cosas cs2\Mi cheat 0\OverlayAI\x64\Release
+
+Offsets generados por cs2-dumper:
+C:\Users\ariel\Desktop\Cosas cs2\Mi cheat 0\OverlayAI\x64\Release\output
+
+Proyecto del inyector Manual Map:
+C:\Users\ariel\Desktop\OtroInyector\OtroInyector
+
+Runtime del inyector y copia de la DLL:
+C:\Users\ariel\Desktop\OtroInyector\OtroInyector\x64\Release
+C:\Users\ariel\Desktop\OtroInyector\OtroInyector\x64\Release\OverlayAI.InventoryBridge.dll
+
+Log del bridge inyectado:
+%TEMP%\OverlayAI.InventoryBridge.log
+
+Documentacion historica que sigue siendo util:
+Pendientes e implementaciones\HISTORIAL_TECNICO_INVENTORY_CHANGER_2026-07-26.txt
+Pendientes e implementaciones\REVISION_TECNICA_PANORAMA_NEW_ITEM_2026-07-26.txt
+Pendientes e implementaciones\PANORAMA_ABI_RESEARCH_2026-07-26.md
+Pendientes e implementaciones\INVENTORY_RUNTIME_REGRESSION_MATRIX.md
+
+======================================================================
+3. ARQUITECTURA ACTUAL
+======================================================================
+
+Hay tres piezas cooperando:
+
+1. OverlayAI.exe es el host external, contiene el menu, catalogo, coleccion,
+   Configs, persistencia y el aplicador external de Music Kits.
+
+2. OverlayAI.InventoryBridge.dll se inyecta por Manual Map dentro de CS2. Tiene
+   acceso al game thread, Panorama, SOCache, loadout interno y los hooks de ciclo
+   de vida usados por cuchillos/agentes/guantes.
+
+3. OtroInyector.exe permite seleccionar la DLL y realiza el Manual Map.
+
+Overlay y bridge se comunican mediante el pipe local versionado:
+\\.\pipe\OverlayAI.Inventory.v1
+
+El bridge solicita inventory.snapshot. Overlay responde con catalogo local,
+coleccion, loadout, pendingRevealItemId y offsets runtime. Panorama devuelve
+acciones inventory.equip, inventory.unequip e inventory.close_reveal por el
+mismo canal.
+
+Al cerrar OverlayAI se senala:
+Local\OverlayAI.InventoryBridge.Stop
+
+El bridge retira hooks, restaura overrides, elimina items SOCache generados y
+desmonta los paneles Panorama. Panic debe conservar siempre esta limpieza.
+
+======================================================================
+4. MUSIC KITS: FUNCIONAMIENTO YA VALIDADO
+======================================================================
+
+El vertical slice de Music Kits ya supera estas pruebas:
+
+- Catalogo y deteccion de Music Kits validos.
+- Agregar varias instancias a la coleccion local con localId independiente.
+- Equipar y desequipar desde OverlayAI.
+- Guardar y cargar en distintos Config slots.
+- Preload de Configs.
+- Restaurar el Music Kit original al desequipar o cerrar.
+- Aplicacion dentro de partidas con bots y servidores probados anteriormente.
+- Controlar un bot sin escribir sobre el controller o InventoryServices viejo.
+- IPC local con handshake, reconexion, snapshots y comandos.
+- pendingRevealItemId persistente.
+- NEW ITEM de Panorama con imagen, nombre, rareza y estado equipado.
+- Botones EQUIPAR/VER EN LOADOUT y CONTINUAR.
+- inventory.close_reveal e inventory.equip recibidos por OverlayAI.
+- Recuperacion del reveal pendiente tras reconectar Overlay o Panorama.
+- Prevencion de paneles duplicados mediante IDs Panorama estables.
+- Desmontaje del panel al cerrar/Panic.
+
+El aplicador external actual escribe, con protecciones, en:
+
+- CCSPlayerController::m_iMusicKitID
+- CCSPlayerController_InventoryServices::m_unMusicID
+
+Protecciones actuales:
+
+- Tick limitado a 250 ms.
+- Cuatro muestras estables antes de aceptar controller/contexto.
+- Captura del estado original.
+- WriteIfDifferent para no escribir continuamente.
+- Restauracion al desactivar, desequipar, eliminar, cerrar o perder contexto.
+- Validacion de identidad antes de restaurar.
+- Reaplicacion explicita cuando cambia el loadout.
+
+Archivos principales de esta parte:
+
+OverlayAI\src\InventoryChanger.cpp/.h
+OverlayAI\src\InventoryStore.cpp/.h
+OverlayAI\src\InventoryCatalog.cpp/.h
+OverlayAI\src\InventoryPersistence.cpp/.h
+OverlayAI\src\InventoryProtocol.cpp/.h
+OverlayAI\src\InventoryIpcController.cpp/.h
+OverlayAI\src\InventoryIpcServer.cpp/.h
+OverlayAI\src\Menu.cpp
+OverlayAI.InventoryBridge\PanoramaMount.cpp/.h
+OverlayAI.InventoryBridge\InventoryBridge.cpp
+OverlayAI.InventoryBridge\InventorySocache.cpp/.h
+
+======================================================================
+5. LIMITACION PENDIENTE EXACTA
+======================================================================
+
+La musica del menu principal todavia no cambia de forma estable. El aplicador
+external depende de un controller e InventoryServices validos dentro de una
+partida. En el menu principal ese contexto no existe o no representa la fuente
+que Panorama/LoadoutAPI usa para seleccionar la musica.
+
+No se debe intentar solucionar escribiendo repetidamente direcciones candidatas
+o manteniendo punteros de una partida anterior. Eso rompería la restauracion y
+puede causar crashes al volver al menu.
+
+Ahora existe una base interna que no existia al documentar la limitacion:
+
+- PanoramaMount obtiene CUIEngine y rootPanel validos.
+- RunScript se ejecuta en game thread.
+- El bridge puede crear y destruir paneles Panorama.
+- InventorySocache crea CEconItem locales, los anuncia y equipa slots internos.
+- La coleccion SOCache y el loadout de cuchillos funcionan actualmente.
+
+Sin embargo, el bridge hoy sincroniza principalmente la coleccion publicada de
+cuchillos. No hay todavia una ruta completa de Music Kit hacia SOCache/loadout
+del menu principal.
+
+======================================================================
+6. CAMINOS TECNICOS A INVESTIGAR
+======================================================================
+
+Camino recomendado, por orden:
+
+1. Extender el snapshot interno para publicar los Music Kits de la coleccion,
+   no solo leer el pending reveal.
+
+2. Determinar la identidad economica correcta del Music Kit:
+   definition index, music/service ID, calidad y atributos requeridos. No asumir
+   que el music ID external es siempre el definition index economico.
+
+3. Crear o reutilizar el CEconItem local mediante InventorySocache y verificar
+   que aparece en el type cache sin duplicados.
+
+4. Descubrir el slot/loadout real de Music Kits mediante datos del juego o una
+   lectura controlada del item legitimo. No fijar un numero de slot sin validar.
+
+5. Equipar el faux item por la rutina nativa de loadout ya resuelta. Comprobar si
+   Panorama/LoadoutAPI actualiza la musica del menu.
+
+6. Si SOCache no notifica correctamente a Panorama, usar RunScript solo como
+   invalidacion/refresco del loadout. Evitar que JavaScript se convierta en la
+   fuente de verdad de la coleccion.
+
+7. Mantener el aplicador external como fallback dentro de partida hasta que la
+   ruta interna demuestre que cubre ambos contextos.
+
+Alternativa a estudiar si el camino SOCache no basta:
+
+- Llamada interna validada a LoadoutAPI desde Panorama usando el faux item ID.
+- Debe ejecutarse en game thread y conservar rollback. No usar comandos de
+  consola ni modificar Steam/backend.
+
+======================================================================
+7. REQUISITOS DE CICLO DE VIDA
+======================================================================
+
+La implementacion de menu principal no esta terminada hasta superar:
+
+- Equipar Music Kit A en el menu principal.
+- Cambiar a Music Kit B sin entrar a una partida.
+- Desequipar y recuperar el Music Kit original.
+- Entrar a partida y conservar el mismo kit.
+- Volver al menu y mantener el estado.
+- Cargar otra Config.
+- Reiniciar OverlayAI con CS2 abierto.
+- Reconectar Panorama y recuperar pendingRevealItemId.
+- No crear tarjetas, items SOCache ni paneles duplicados.
+- Panic restaura loadout, elimina faux items y desmonta Panorama.
+- Cerrar CS2/Overlay en distinto orden sin escribir memoria expirada.
+- Cambio de resolucion, recarga de UI y cambio de pestana.
+- Controlar un bot sin cambiar el Music Kit a un contexto ajeno.
+
+La restauracion debe comprobar identidad completa del contexto. Nunca restaurar
+sobre una direccion recordada si controller, inventory, item o sesion cambiaron.
+
+======================================================================
+8. ESTADO DE PANORAMA
+======================================================================
+
+PanoramaMount.cpp contiene un vertical slice funcional, no un clon definitivo
+de toda la interfaz oficial. Ya existe:
+
+- Root estable con IDs OverlayAI.
+- Reveal NEW ITEM.
+- Imagen, rareza y nombre.
+- Estado equipado.
+- Botones de equipamiento y continuar.
+- Coleccion simple del Music Kit seleccionado.
+- Envio de comandos mediante atributo/polling validado en game thread.
+- Reconstruccion del root tras recarga de UI.
+
+No confundir este vertical slice con el diseno final. Primero cerrar el flujo de
+loadout del menu principal; despues se puede ampliar la cuadricula y acercar el
+aspecto al estilo nativo de CS2.
+
+======================================================================
+9. CAMBIOS RECIENTES QUE NO DEBEN REGRESAR
+======================================================================
+
+- El bridge consulta snapshots cada 100 ms, no cada 1000 ms.
+- La tolerancia antes de restaurar por fallo IPC es de 30 muestras (~3 s).
+- Los 20 cuchillos y sus skins fueron validados visualmente.
+- El cambio de skin suele tardar 263-769 ms; media observada ~540 ms.
+- StatTrak fisico se reconstruye despues de SetModel y se valida al finalizar el
+  composite diferido.
+- El usuario puede elegir statTrakCount al crear o editar una variante.
+- Desactivar StatTrak/Souvenir normaliza el contador a cero.
+- No mover la reconstruccion de modulos StatTrak antes de SetModel.
+
+======================================================================
+10. COMPILACION Y DESPLIEGUE
+======================================================================
+
+MSBuild usado:
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Current\Bin\MSBuild.exe
+
+Solucion:
+C:\Users\ariel\Desktop\Cosas cs2\Mi cheat 0\OverlayAI\OverlayAI.sln
+
+Configuracion:
+Release | x64
+
+Salida principal:
+C:\Users\ariel\Desktop\Cosas cs2\Mi cheat 0\OverlayAI\x64\Release\OverlayAI.exe
+C:\Users\ariel\Desktop\Cosas cs2\Mi cheat 0\OverlayAI\x64\Release\OverlayAI.InventoryBridge.dll
+
+Tras compilar el bridge, copiar la DLL al runtime de OtroInyector. Antes de
+inyectar una version nueva, cerrar OverlayAI mediante Panic para senalar el stop
+event y esperar a que el log termine con "InventoryBridge detenido". Despues
+reiniciar OverlayAI e inyectar la DLL nueva.
+
+No asumir que CS2, Overlay o el inyector siguen abiertos al iniciar el chat
+nuevo. Comprobar procesos y offsets antes de tocar memoria.
+
+======================================================================
+11. PRIMERA TAREA RECOMENDADA PARA EL NUEVO CHAT
+======================================================================
+
+1. Leer InventoryChanger.cpp y confirmar el fallback external actual.
+2. Leer el formato inventory.snapshot en InventoryProtocol.cpp.
+3. Leer PublishPanoramaInventorySnapshot/FindPendingMusicKit.
+4. Leer InventorySocacheItemSpec y la sincronizacion actual de cuchillos.
+5. Anadir diagnostico de solo lectura que compare:
+   - Music Kit seleccionado en Overlay;
+   - item SOCache generado;
+   - loadout interno observado;
+   - valor que Panorama considera equipado.
+6. Solo despues implementar el equip interno del Music Kit.
+
+Resultado minimo de la primera iteracion:
+
+- Un Music Kit local puede equiparse en el menu principal.
+- Se refleja en Panorama.
+- Se restaura limpiamente.
+- No se altera la aplicacion external dentro de partida.
+- No quedan items o paneles residuales tras Panic.
+

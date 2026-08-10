@@ -1,0 +1,127 @@
+<root>
+    <styles>
+        <include src="file://{resources}/styles/overlayai_local_inventory.css" />
+    </styles>
+    <scripts>
+        <include src="file://{resources}/scripts/overlayai_local_inventory.js" />
+    </scripts>
+
+    <Panel id="OverlayAILocalInventoryRoot" class="OverlayAILocalInventoryRoot">
+        <Panel class="OverlayAIBackdrop" />
+
+        <Panel class="OverlayAIRevealView">
+            <Panel class="OverlayAIRevealCard">
+                <Panel class="OverlayAITopRail">
+                    <Label class="OverlayAIKicker" text="NEW ITEM" />
+                    <Label id="OverlayAIBridgeState" class="OverlayAIConnection" text="PROTOTYPE" />
+                </Panel>
+
+                <Panel class="OverlayAIContent">
+                    <Panel class="OverlayAIArtStage">
+                        <Panel class="OverlayAIRecordOuter">
+                            <Panel class="OverlayAIRecordInner" />
+                            <Panel class="OverlayAIRecordLabel">
+                                <Label text="CS2" />
+                            </Panel>
+                        </Panel>
+                        <Image id="OverlayAIRevealItemImage" class="OverlayAIItemImage" scaling="stretch-to-fit-preserve-aspect" />
+                        <Panel id="OverlayAIRevealRarityLine" class="OverlayAIRarityLine" />
+                    </Panel>
+
+                    <Panel class="OverlayAIItemDetails">
+                        <Label id="OverlayAIRevealItemType" class="OverlayAIType" text="LOCAL ITEM" />
+                        <Label id="OverlayAIRevealItemName" class="OverlayAIItemName" text="Valve, Counter-Strike 2" />
+                        <Label id="OverlayAIRevealItemRarity" class="OverlayAIItemRarity" text="HIGH GRADE" />
+                        <Label id="OverlayAIRevealItemStatus" class="OverlayAIItemStatus" text="Vista previa local. Esperando puente de inventario." />
+
+                        <Panel class="OverlayAIActions">
+                            <Button id="OverlayAIRevealEquipButton" class="OverlayAIPrimaryButton Disabled">
+                                <Label id="OverlayAIRevealEquipLabel" text="EQUIPAR LOCALMENTE" />
+                            </Button>
+                            <Button id="OverlayAIContinueButton" class="OverlayAISecondaryButton">
+                                <Label text="CONTINUAR" />
+                            </Button>
+                        </Panel>
+                    </Panel>
+                </Panel>
+
+                <Panel class="OverlayAIFooter">
+                    <Label text="OverlayAI // Presentacion local" />
+                    <Label id="OverlayAIRevealItemIdentity" text="STATIC PREVIEW" />
+                </Panel>
+            </Panel>
+        </Panel>
+
+        <Panel class="OverlayAICollectionView">
+            <Panel class="OverlayAICollectionShell">
+                <Panel class="OverlayAICollectionHeader">
+                    <Panel class="OverlayAICollectionTitleBlock">
+                        <Label class="OverlayAICollectionEyebrow" text="OVERLAYAI" />
+                        <Label class="OverlayAICollectionTitle" text="LOCAL INVENTORY" />
+                    </Panel>
+                    <Label id="OverlayAICollectionCount" class="OverlayAICollectionCount" text="0 MUSIC KITS" />
+                    <Label id="OverlayAICollectionBridgeState" class="OverlayAIConnection" text="PROTOTYPE" />
+                </Panel>
+
+                <Panel class="OverlayAICollectionBody">
+                    <Panel class="OverlayAICollectionBrowser">
+                        <Panel class="OverlayAICollectionBrowserRail">
+                            <Label text="COLLECTION" />
+                            <Button id="OverlayAICollectionRefreshButton" class="OverlayAIIconButton">
+                                <Label text="REFRESH" />
+                            </Button>
+                        </Panel>
+                        <TextEntry id="OverlayAICollectionSearch" class="OverlayAICollectionSearch" placeholder="SEARCH LOCAL ITEMS" />
+                        <Panel class="OverlayAIFilterRow">
+                            <Button id="OverlayAIFilterAll" class="OverlayAIFilterButton Selected"><Label text="ALL" /></Button>
+                            <Button id="OverlayAIFilterMusic" class="OverlayAIFilterButton"><Label text="MUSIC" /></Button>
+                            <Button id="OverlayAIFilterWeapons" class="OverlayAIFilterButton"><Label text="WEAPONS" /></Button>
+                            <Button id="OverlayAIFilterKnives" class="OverlayAIFilterButton"><Label text="KNIVES" /></Button>
+                            <Button id="OverlayAIFilterGloves" class="OverlayAIFilterButton"><Label text="GLOVES" /></Button>
+                            <Button id="OverlayAIFilterAgents" class="OverlayAIFilterButton"><Label text="AGENTS" /></Button>
+                        </Panel>
+                        <Panel id="OverlayAICollectionList" class="OverlayAICollectionList" />
+                    </Panel>
+
+                    <Panel class="OverlayAICollectionDetail">
+                        <Panel class="OverlayAICollectionImageStage">
+                            <Panel class="OverlayAIRecordOuter OverlayAICollectionRecord">
+                                <Panel class="OverlayAIRecordInner" />
+                            </Panel>
+                            <Image id="OverlayAICollectionItemImage" class="OverlayAICollectionItemImage" scaling="stretch-to-fit-preserve-aspect" />
+                            <Panel id="OverlayAICollectionRarityLine" class="OverlayAIRarityLine" />
+                        </Panel>
+                        <Label id="OverlayAICollectionItemType" class="OverlayAIType" text="LOCAL ITEM" />
+                        <Label id="OverlayAICollectionItemName" class="OverlayAICollectionItemName" text="Coleccion local vacia" />
+                        <Label id="OverlayAICollectionItemRarity" class="OverlayAIItemRarity" text="MUSIC KITS" />
+                        <Label id="OverlayAICollectionItemMeta" class="OverlayAICollectionItemMeta" text="Anade un Music Kit desde OverlayAI para verlo aqui." />
+                        <Label id="OverlayAICollectionItemIdentity" class="OverlayAICollectionItemIdentity" text="SIN SELECCION" />
+
+                        <Panel class="OverlayAICollectionActions">
+                            <Button id="OverlayAICollectionEquipButton" class="OverlayAIPrimaryButton Disabled">
+                                <Label text="EQUIPAR" />
+                            </Button>
+                            <Button id="OverlayAICollectionUnequipButton" class="OverlayAISecondaryButton Disabled">
+                                <Label text="DESEQUIPAR" />
+                            </Button>
+                            <Button id="OverlayAICollectionDuplicateButton" class="OverlayAIQuietButton Disabled">
+                                <Label text="DUPLICAR" />
+                            </Button>
+                            <Button id="OverlayAICollectionRemoveButton" class="OverlayAIDangerButton Disabled">
+                                <Label id="OverlayAICollectionRemoveLabel" text="ELIMINAR" />
+                            </Button>
+                            <Button id="OverlayAICollectionCloseButton" class="OverlayAIQuietButton">
+                                <Label text="CERRAR" />
+                            </Button>
+                        </Panel>
+                    </Panel>
+                </Panel>
+
+                <Panel class="OverlayAICollectionFooter">
+                    <Label id="OverlayAICollectionStatus" text="Esperando snapshot del inventario local." />
+                    <Label class="OverlayAILocalOnly" text="SOLO LOCAL" />
+                </Panel>
+            </Panel>
+        </Panel>
+    </Panel>
+</root>
