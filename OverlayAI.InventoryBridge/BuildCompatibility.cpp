@@ -1,3 +1,8 @@
+// ============================================================
+// BuildCompatibility.cpp
+// Compatibility functions between compiler/build versions.
+// ============================================================
+
 #include "BuildCompatibility.h"
 
 #include <strsafe.h>

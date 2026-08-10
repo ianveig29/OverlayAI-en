@@ -1,3 +1,8 @@
+// ============================================================
+// InventoryValidator.cpp
+// Validates that inventory items are valid before applying them.
+// ============================================================
+
 #include "InventoryValidator.h"
 
 #include "InventoryCatalog.h"

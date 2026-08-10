@@ -1,3 +1,8 @@
+// ============================================================
+// InventoryLog.cpp
+// Logging system for the inventory module. Records which items are applied and errors.
+// ============================================================
+
 #include "InventoryLog.h"
 
 #include <windows.h>

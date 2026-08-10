@@ -1,5 +1,10 @@
 #pragma once
 
+// ============================================================
+// Bhop.h
+// Bunny hop function declarations.
+// ============================================================
+
 #include <cstdint>
 
 struct BhopTelemetry {

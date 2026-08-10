@@ -1,3 +1,8 @@
+// ============================================================
+// Bhop.cpp
+// Bunny Hop: makes the character jump automatically when hitting the ground, allowing faster movement.
+// ============================================================
+
 #include "Bhop.h"
 
 #include "Config.h"

@@ -1,3 +1,8 @@
+// ============================================================
+// Bomb.cpp
+// Handles bomb information: detects if planted, where it is, time remaining, and whether it can be defused.
+// ============================================================
+
 #include "Bomb.h"
 #include "Memory.h"
 #include "Offsets.h"
@@ -67,6 +72,7 @@ vector<pair<string,string>> GatherSpectators() {
 		if (!IsValidPtr(targetEnt)) continue;
 
 		char obsName[128] = {};
+// Reads a player name from memory
 		ReadPlayerName(controller, obsName, sizeof(obsName));
 		if (obsName[0] == '\0') snprintf(obsName, sizeof(obsName), "Player %d", i);
 
@@ -81,6 +87,7 @@ vector<pair<string,string>> GatherSpectators() {
 		}
 
 		char tgtName[128] = {};
+// Reads a player name from memory
 		if (IsValidPtr(targetController)) ReadPlayerName(targetController, tgtName, sizeof(tgtName));
 		if (tgtName[0] == '\0') snprintf(tgtName, sizeof(tgtName), "Pawn %d", targetIndex);
 
@@ -138,6 +145,7 @@ vector<PlantedC4Info> GatherPlantedC4Infos() {
 					if ((ph & 0x7FFF) == defIdx) { defController = c; break; }
 				}
 				char dn[128] = {};
+// Reads a player name from memory
 				if (IsValidPtr(defController)) ReadPlayerName(defController, dn, sizeof(dn));
 				if (dn[0] != '\0') info.defuserName = dn;
 			}

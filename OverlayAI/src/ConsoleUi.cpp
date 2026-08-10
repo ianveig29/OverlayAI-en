@@ -1,3 +1,8 @@
+// ============================================================
+// ConsoleUi.cpp
+// Text console interface. Allows controlling some options from a console window.
+// ============================================================
+
 #include "ConsoleUi.h"
 
 #include "DumperValidator.h"

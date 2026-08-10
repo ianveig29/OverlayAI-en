@@ -1,5 +1,10 @@
 #pragma once
 
+// ============================================================
+// InventoryLog.h
+// Inventory logging function declarations.
+// ============================================================
+
 #include <cstdint>
 #include <string>
 #include <vector>

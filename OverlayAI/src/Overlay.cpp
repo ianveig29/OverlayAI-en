@@ -1,3 +1,8 @@
+// ============================================================
+// Overlay.cpp
+// Creates and manages the overlay window that draws on top of the game.
+// ============================================================
+
 #include "Overlay.h"
 #include <d3d11.h>
 #include <dxgi.h>

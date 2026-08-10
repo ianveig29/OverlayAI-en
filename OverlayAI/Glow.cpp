@@ -1,3 +1,8 @@
+// ============================================================
+// Glow.cpp
+// Glow system. Applies a brightness effect to players so they are easily visible, even through walls.
+// ============================================================
+
 #include "Glow.h"
 
 #include "Config.h"
@@ -187,6 +192,7 @@ namespace {
 void RunGlow() {
     if (!mem.clientModule) return;
 
+// Gets the most recent player snapshot
     const FrameSnapshot& frame = GetCurrentFrameSnapshot();
     std::unordered_set<uintptr_t> currentPawns;
     currentPawns.reserve(frame.entities.size());
@@ -244,6 +250,7 @@ void RunGlow() {
 
 void ShutdownGlow() {
     if (mem.clientModule) {
+// Gets the most recent player snapshot
         const FrameSnapshot& frame = GetCurrentFrameSnapshot();
         for (const EntitySnapshot& snap : frame.entities) {
             if (g_activeGlowPawns.find(snap.pawn) != g_activeGlowPawns.end() &&

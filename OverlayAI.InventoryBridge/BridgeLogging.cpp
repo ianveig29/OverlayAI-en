@@ -1,3 +1,8 @@
+// ============================================================
+// BridgeLogging.cpp
+// Logging system specific to the Inventory Bridge.
+// ============================================================
+
 #include "BridgeLogging.h"
 
 #include <windows.h>

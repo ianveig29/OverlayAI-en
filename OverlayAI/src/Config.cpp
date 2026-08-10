@@ -1,3 +1,8 @@
+// ============================================================
+// Config.cpp
+// Handles program configuration. Saves and loads settings (ESP colors, keybinds, triggerbot options, etc.) to .cfg files so they persist between sessions.
+// ============================================================
+
 #include "Config.h"
 #include "imgui.h"
 #include <cstdio>
@@ -54,6 +59,7 @@ namespace {
 
 }
 
+// Saves ESP configuration to a file
 void SaveEspConfig(const char* path) {
     FILE* f = nullptr;
     fopen_s(&f, path, "w");
@@ -236,6 +242,7 @@ int LoadPreloadSlot() {
     return 0;
 }
 
+// Loads ESP configuration from a file
 void LoadEspConfig(const char* path) {
     FILE* f = nullptr;
     fopen_s(&f, path, "r");
@@ -541,6 +548,7 @@ void EnsureConfigStorage() {
             if (!error) continue;
             error.clear();
         }
+// Saves ESP configuration to a file
         SaveEspConfig(destination.string().c_str());
     }
 }
@@ -575,11 +583,13 @@ std::vector<std::string> ListConfigPresets() {
     return presets;
 }
 
+// Saves a named configuration preset
 bool SaveConfigPreset(const std::string& name, std::string* savedName) {
     EnsureConfigStorage();
     const std::string normalized = NormalizeConfigName(name);
     if (normalized.empty()) return false;
     const fs::path path = kConfigDirectory / normalized;
+// Saves ESP configuration to a file
     SaveEspConfig(path.string().c_str());
     std::error_code error;
     const bool saved = fs::exists(path, error) && fs::file_size(path, error) > 0;
@@ -587,10 +597,12 @@ bool SaveConfigPreset(const std::string& name, std::string* savedName) {
     return saved;
 }
 
+// Loads a saved configuration preset
 bool LoadConfigPreset(const std::string& name) {
     const fs::path path = ConfigPath(name);
     std::error_code error;
     if (path.empty() || !fs::is_regular_file(path, error)) return false;
+// Loads ESP configuration from a file
     LoadEspConfig(path.string().c_str());
     return true;
 }
@@ -605,6 +617,7 @@ bool DeleteConfigPreset(const std::string& name) {
     return removed && !error;
 }
 
+// Resets all settings to factory defaults
 void ResetConfigDefaults() {
     g_Esp = EspSettings{};
     g_App = AppSettings{};

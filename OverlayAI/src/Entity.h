@@ -1,5 +1,10 @@
 #pragma once
 
+// ============================================================
+// Entity.h
+// Declarations for functions and structures that handle player information.
+// ============================================================
+
 #include "Types.h"
 #include <cstdint>
 #include <cstdarg>
@@ -10,10 +15,14 @@ extern uintptr_t g_entityStride;
 uintptr_t GetEntityListBase();
 uintptr_t GetEntityByIndexAuto(uintptr_t entityList, int index);
 uintptr_t DetectEntityStride(uintptr_t entityList, uintptr_t localController, uintptr_t localPawn);
+// Gets the X Y Z position of a player
 Vector3 GetPawnWorldPos(uintptr_t pawn);
+// Checks if a player is alive
 bool IsPawnAlive(uintptr_t pawn);
+// Reads a player name from memory
 void ReadPlayerName(uintptr_t controller, char* out, size_t outSize);
 bool IsPawnVisibleToLocal(uintptr_t pawn, int localPlayerIndex);
+// Identifies which player is the local player
 void ResolveActiveLocal(uintptr_t entityList, uintptr_t stride,
     uintptr_t& outController, uintptr_t& outPawn, int& outTeam, int& outPlayerIndex);
 void GetPlayerArmorInfo(uintptr_t pawn, int& armorOut, bool& hasHelmetOut);

@@ -1,5 +1,10 @@
 #pragma once
 
+// ============================================================
+// InventoryStore.h
+// Inventory store function declarations.
+// ============================================================
+
 #include "InventoryTypes.h"
 
 struct InventoryMigrationResult {

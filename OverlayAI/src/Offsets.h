@@ -1,5 +1,10 @@
 #pragma once
 
+// ============================================================
+// Offsets.h
+// Game memory offset declarations.
+// ============================================================
+
 #include <cstdint>
 #include <string>
 #include <vector>

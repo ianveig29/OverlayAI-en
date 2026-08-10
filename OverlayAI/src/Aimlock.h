@@ -1,4 +1,10 @@
 #pragma once
+
+// ============================================================
+// Aimlock.h
+// Aimlock function declarations.
+// ============================================================
+
 #include "Types.h"
 
 void PollAimKeyBind();

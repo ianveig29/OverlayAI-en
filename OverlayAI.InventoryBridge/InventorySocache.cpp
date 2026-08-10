@@ -1,3 +1,8 @@
+// ============================================================
+// InventorySocache.cpp
+// Handles the SOCache (game object cache) to insert modified inventory items.
+// ============================================================
+
 #include "InventorySocache.h"
 
 #include "BridgeLogging.h"

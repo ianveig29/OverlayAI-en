@@ -1,5 +1,10 @@
 #pragma once
 
+// ============================================================
+// InventoryIpcServer.h
+// IPC server function declarations.
+// ============================================================
+
 #include <cstdint>
 #include <memory>
 #include <string>

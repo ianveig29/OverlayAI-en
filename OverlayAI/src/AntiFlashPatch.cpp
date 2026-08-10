@@ -1,3 +1,8 @@
+// ============================================================
+// AntiFlashPatch.cpp
+// Patches game memory to implement the anti-flashbang effect directly.
+// ============================================================
+
 #include "AntiFlashPatch.h"
 #include "Memory.h"
 #include "Entity.h"
@@ -20,6 +25,7 @@ void RunAntiFlash() {
 	uintptr_t localPawn = 0;
 	int localTeam = 0;
 	int localPlayerIndex = -1;
+// Identifies which player is the local player
 	ResolveActiveLocal(entityList, g_entityStride, localController, localPawn, localTeam, localPlayerIndex);
 	// If ResolveActiveLocal failed, try other common ways to obtain the local pawn
 	if (!IsValidPtr(localPawn)) {

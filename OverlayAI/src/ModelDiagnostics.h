@@ -1,5 +1,10 @@
 #pragma once
 
+// ============================================================
+// ModelDiagnostics.h
+// Model diagnostics function declarations.
+// ============================================================
+
 #include <cstdint>
 #include <string>
 

@@ -1,3 +1,8 @@
+// ============================================================
+// InventoryIpcController.cpp
+// IPC (inter-process communication) controller for sending inventory commands to the game.
+// ============================================================
+
 #include "InventoryIpcController.h"
 
 #include "Config.h"

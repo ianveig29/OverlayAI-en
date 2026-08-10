@@ -1,5 +1,10 @@
 #pragma once
 
+// ============================================================
+// InventorySocache.h
+// SOCache function declarations.
+// ============================================================
+
 #include <cstdint>
 
 struct InventorySocacheDiagnostics {

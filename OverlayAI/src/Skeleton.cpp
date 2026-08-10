@@ -1,3 +1,8 @@
+// ============================================================
+// Skeleton.cpp
+// Draws player skeletons (bones) on screen. Useful for seeing enemy posture.
+// ============================================================
+
 #include "Skeleton.h"
 #include "Memory.h"
 #include "Offsets.h"
@@ -124,6 +129,7 @@ void DrawSkeletonPose(ImDrawList* drawList, const SkeletonPose& pose,
     for (size_t i = 0; i < kSkeletonBoneCount; ++i) {
         if (!pose.valid[i]) continue;
         Vector3 screen{};
+// Converts a 3D world position to 2D screen coordinates
         if (!WorldToScreen(pose.bones[i], screen, viewMatrix, screenWidth, screenHeight)) continue;
         if (screen.x < -screenWidth || screen.x > screenWidth * 2.0f ||
             screen.y < -screenHeight || screen.y > screenHeight * 2.0f) continue;
@@ -162,6 +168,7 @@ void DrawCustomGlowPose(ImDrawList* drawList, const SkeletonPose& pose,
     for (size_t index = 0; index < kSkeletonBoneCount; ++index) {
         if (!pose.valid[index]) continue;
         Vector3 screen{};
+// Converts a 3D world position to 2D screen coordinates
         if (!WorldToScreen(pose.bones[index], screen, viewMatrix, screenWidth, screenHeight)) continue;
         if (screen.x < -screenWidth || screen.x > screenWidth * 2.0f ||
             screen.y < -screenHeight || screen.y > screenHeight * 2.0f) continue;

@@ -1,4 +1,10 @@
 #pragma once
+
+// ============================================================
+// Skeleton.h
+// Skeleton function declarations.
+// ============================================================
+
 #include "Types.h"
 #include "imgui.h"
 #include <array>

@@ -1,3 +1,8 @@
+// ============================================================
+// InventoryBridge.cpp
+// Main inventory bridge file. Checks if the game was launched with the -insecure flag and, based on that, enables or disables the Weapon Skin SOCache system. Also writes activity logs to overlayai.log.
+// ============================================================
+
 // InventoryBridge.cpp
 // OverlayAI - Inventory bridge utility
 // Este archivo implementa la verificación del flag de lanzamiento "-insecure" y

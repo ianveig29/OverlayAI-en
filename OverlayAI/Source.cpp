@@ -1,3 +1,8 @@
+// ============================================================
+// Source.cpp
+// Legacy main source file. Contains offset definitions, math structures, and base configuration settings.
+// ============================================================
+
 #include <windows.h>
 #include <tlhelp32.h>
 #include <iostream>
@@ -96,6 +101,7 @@ static ImU32 EspColor(int r, int g, int b, int a = 255) {
     return IM_COL32((ImU32)r, (ImU32)g, (ImU32)b, (ImU32)a);
 }
 
+// Saves ESP configuration to a file
 static void SaveEspConfig(const char* path) {
     FILE* f = nullptr;
     fopen_s(&f, path, "w");
@@ -147,6 +153,7 @@ static void SaveEspConfig(const char* path) {
     fclose(f);
 }
 
+// Loads ESP configuration from a file
 static void LoadEspConfig(const char* path) {
     FILE* f = nullptr;
     fopen_s(&f, path, "r");
@@ -453,6 +460,7 @@ static uintptr_t DetectEntityStride(uintptr_t entityList, uintptr_t localControl
     return 0x78;
 }
 
+// Gets the X Y Z position of a player
 static Vector3 GetPawnWorldPos(uintptr_t pawn) {
     uintptr_t sceneNode = mem.Read<uintptr_t>(pawn + Offsets::m_pGameSceneNode);
     if (IsValidPtr(sceneNode)) {
@@ -465,10 +473,12 @@ static Vector3 GetPawnWorldPos(uintptr_t pawn) {
     return mem.Read<Vector3>(pawn + Offsets::m_vOldOrigin);
 }
 
+// Checks if a player is alive
 static bool IsPawnAlive(uintptr_t pawn) {
     return mem.Read<uint8_t>(pawn + Offsets::m_lifeState) == 0;
 }
 
+// Reads a player name from memory
 static void ReadPlayerName(uintptr_t controller, char* out, size_t outSize) {
     if (!out || outSize == 0) return;
     out[0] = '\0';
@@ -560,6 +570,7 @@ static int ResolveLocalPlayerIndex(uintptr_t localController, uintptr_t localPaw
     return -1;
 }
 
+// Identifies which player is the local player
 static void ResolveActiveLocal(uintptr_t entityList, uintptr_t stride,
     uintptr_t& outController, uintptr_t& outPawn, int& outTeam, int& outPlayerIndex)
 {
@@ -746,6 +757,7 @@ static void RenderEspMenu() {
         DrawColorEdit("Barra chaleco", &g_Esp.armorBarR, &g_Esp.armorBarG, &g_Esp.armorBarB);
 
         if (ImGui::Button("Guardar esp_config.ini"))
+// Saves ESP configuration to a file
             SaveEspConfig("esp_config.ini");
 
         ImGui::End();
@@ -828,9 +840,11 @@ void RenderESP(int screenWidth, int screenHeight) {
     int localPlayerIndex = -1;
 
     if (IsValidPtr(entityList)) {
+// Identifies which player is the local player
         ResolveActiveLocal(entityList, g_entityStride, localController, localPawn, localTeam, localPlayerIndex);
         if (IsValidPtr(localController) && IsValidPtr(localPawn))
             g_entityStride = DetectEntityStride(entityList, localController, localPawn);
+// Identifies which player is the local player
         ResolveActiveLocal(entityList, g_entityStride, localController, localPawn, localTeam, localPlayerIndex);
     }
 
@@ -855,6 +869,7 @@ void RenderESP(int screenWidth, int screenHeight) {
         if (seenPawns.find(pawn) != seenPawns.end()) continue;
         seenPawns.insert(pawn);
 
+// Checks if a player is alive
         bool aliveOnPawn = IsPawnAlive(pawn);
         bool aliveOnCtrl = mem.Read<bool>(controller + Offsets::m_bPawnIsAlive);
         if (!aliveOnPawn && !aliveOnCtrl) continue;
@@ -871,13 +886,16 @@ void RenderESP(int screenWidth, int screenHeight) {
 
         bool visible = IsPawnVisibleToLocal(pawn, localPlayerIndex);
 
+// Gets the X Y Z position of a player
         Vector3 feetWorld = GetPawnWorldPos(pawn);
         if (!std::isfinite(feetWorld.x) || !std::isfinite(feetWorld.y) || !std::isfinite(feetWorld.z)) continue;
         if (fabs(feetWorld.x) < 1.0f && fabs(feetWorld.y) < 1.0f && fabs(feetWorld.z) < 1.0f) continue;
 
         Vector3 headWorld = { feetWorld.x, feetWorld.y, feetWorld.z + 72.0f };
         Vector3 feetScreen, headScreen;
+// Converts a 3D world position to 2D screen coordinates
         if (!WorldToScreen(feetWorld, feetScreen, viewMatrix, screenWidth, screenHeight)) continue;
+// Converts a 3D world position to 2D screen coordinates
         if (!WorldToScreen(headWorld, headScreen, viewMatrix, screenWidth, screenHeight)) continue;
 
         float boxHeight = feetScreen.y - headScreen.y;
@@ -938,6 +956,7 @@ void RenderESP(int screenWidth, int screenHeight) {
 
         if (g_Esp.showNames) {
             char playerName[128] = {};
+// Reads a player name from memory
             ReadPlayerName(controller, playerName, sizeof(playerName));
             if (playerName[0] == '\0')
                 snprintf(playerName, sizeof(playerName), "Player %d", i);
@@ -1059,6 +1078,7 @@ int main() {
     LoadOffsetsFromFile("offsets.ini");
     LoadOffsetsFromFile("offsets.txt");
     LoadOffsetsFromJSON("offsets.json");
+// Loads ESP configuration from a file
     LoadEspConfig("esp_config.ini");
     PrintLoadedOffsets();
 

@@ -1,5 +1,10 @@
 #pragma once
 
+// ============================================================
+// InventoryChanger.h
+// Inventory changer function declarations.
+// ============================================================
+
 #include "Types.h"
 
 #include <cstdint>

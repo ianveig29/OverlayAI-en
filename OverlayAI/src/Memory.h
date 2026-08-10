@@ -1,5 +1,10 @@
 #pragma once
 
+// ============================================================
+// Memory.h
+// Memory access function declarations.
+// ============================================================
+
 #include <windows.h>
 #include <tlhelp32.h>
 #include <cstddef>

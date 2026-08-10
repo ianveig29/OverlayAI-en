@@ -1,3 +1,8 @@
+// ============================================================
+// AntiFlash.cpp
+// Anti-flash: reduces or eliminates the blinding effect when a flashbang explodes near the player.
+// ============================================================
+
 #include "AntiFlash.h"
 #include "Entity.h"
 #include "Memory.h"
@@ -22,6 +27,7 @@ namespace {
     ULONGLONG g_lastObservationMs = 0;
 
     uintptr_t GetLocalPawnFromSnapshot() {
+// Gets the most recent player snapshot
         const uintptr_t pawn = GetCurrentFrameSnapshot().localPawn;
         if (IsValidPtr(pawn)) return pawn;
         const uintptr_t directPawn = mem.Read<uintptr_t>(mem.clientModule + Offsets::dwLocalPlayerPawn);

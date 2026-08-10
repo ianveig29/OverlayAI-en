@@ -1,3 +1,8 @@
+// ============================================================
+// Crosshair.cpp
+// Draws a custom crosshair in the center of the screen.
+// ============================================================
+
 #include "Crosshair.h"
 
 #include "Config.h"

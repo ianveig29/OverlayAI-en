@@ -1,3 +1,8 @@
+// ============================================================
+// WeaponIcons.cpp
+// Draws weapon icons on screen, showing which weapon each player has.
+// ============================================================
+
 #include "WeaponIcons.h"
 
 #include "../imgui.h"

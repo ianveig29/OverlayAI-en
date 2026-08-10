@@ -1,3 +1,8 @@
+// ============================================================
+// AntiSmoke.cpp
+// Anti-smoke: removes smoke from smoke grenades to see through them.
+// ============================================================
+
 #include "AntiSmoke.h"
 #include "Entity.h"
 #include "Memory.h"
@@ -124,6 +129,7 @@ bool IsAntiSmokeActive() {
 
 float GetLocalSmokeOverlayAlpha() {
     if (!mem.clientModule) return 0.0f;
+// Gets the most recent player snapshot
     const uintptr_t localPawn = GetCurrentFrameSnapshot().localPawn;
     if (!IsValidPtr(localPawn)) return 0.0f;
 

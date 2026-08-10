@@ -1,4 +1,10 @@
 #pragma once
+
+// ============================================================
+// GlowInternal.h
+// Internal glow system definitions.
+// ============================================================
+
 #include <cstdint>
 #include <vector>
 #include <unordered_map>

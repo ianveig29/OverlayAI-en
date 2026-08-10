@@ -1,3 +1,8 @@
+// ============================================================
+// InventoryPreview.cpp
+// Shows a preview of inventory items in the menu.
+// ============================================================
+
 #include "InventoryPreview.h"
 
 #include "Overlay.h"

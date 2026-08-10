@@ -1,3 +1,8 @@
+// ============================================================
+// InventoryTests.cpp
+// Automated tests for the inventory system. Verifies that items are applied correctly.
+// ============================================================
+
 #include "InventoryCatalog.h"
 #include "InventoryIpcServer.h"
 #include "InventoryPersistence.h"

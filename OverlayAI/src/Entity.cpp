@@ -1,3 +1,8 @@
+// ============================================================
+// Entity.cpp
+// Reads player information from the game (position, health, team, name, weapon). Maintains a snapshot of all players for other modules to use.
+// ============================================================
+
 #include "Entity.h"
 #include "WorldTransform.h"
 #include <unordered_set>
@@ -81,6 +86,7 @@ static FrameSnapshot g_snapBuffers[2];
 static std::atomic<int> g_activeSnap = 0; // index of buffer renderer should read
 static std::mutex g_buildMutex;
 
+// Takes a snapshot of all players in the game
 bool BuildFrameSnapshot(FrameSnapshot& out, int maxPlayers) {
     std::lock_guard<std::mutex> lk(g_buildMutex);
     out.entities.clear();
@@ -100,6 +106,7 @@ bool BuildFrameSnapshot(FrameSnapshot& out, int maxPlayers) {
     out.localPlayerIndex = -1;
     if (IsValidPtr(out.localController))
         g_entityStride = DetectEntityStride(entityList, out.localController, out.localPawn);
+// Identifies which player is the local player
     ResolveActiveLocal(entityList, g_entityStride, out.localController, out.localPawn, out.localTeam, out.localPlayerIndex);
 
     out.localScopeLevel = 0;
@@ -148,6 +155,7 @@ bool BuildFrameSnapshot(FrameSnapshot& out, int maxPlayers) {
 bool RefreshGlobalSnapshot() {
     int inactive = (g_activeSnap.load() ^ 1);
     FrameSnapshot tmp;
+// Takes a snapshot of all players in the game
     if (!BuildFrameSnapshot(tmp)) return false;
     g_snapBuffers[inactive] = std::move(tmp);
     g_activeSnap.store(inactive);
@@ -203,6 +211,7 @@ uintptr_t DetectEntityStride(uintptr_t entityList, uintptr_t localController, ui
     return (g_entityStride == 0x70 || g_entityStride == 0x78) ? g_entityStride : 0x70;
 }
 
+// Gets the X Y Z position of a player
 Vector3 GetPawnWorldPos(uintptr_t pawn) {
     uintptr_t sceneNode = mem.Read<uintptr_t>(pawn + Offsets::m_pGameSceneNode);
     if (IsValidPtr(sceneNode)) {
@@ -215,10 +224,12 @@ Vector3 GetPawnWorldPos(uintptr_t pawn) {
     return mem.Read<Vector3>(pawn + Offsets::m_vOldOrigin);
 }
 
+// Checks if a player is alive
 bool IsPawnAlive(uintptr_t pawn) {
     return mem.Read<uint8_t>(pawn + Offsets::m_lifeState) == 0;
 }
 
+// Reads a player name from memory
 void ReadPlayerName(uintptr_t controller, char* out, size_t outSize) {
     if (!out || outSize == 0) return;
     out[0] = '\0';
@@ -424,6 +435,7 @@ static int ResolveLocalPlayerIndex(uintptr_t localController, uintptr_t localPaw
     return -1;
 }
 
+// Identifies which player is the local player
 void ResolveActiveLocal(uintptr_t entityList, uintptr_t stride,
     uintptr_t& outController, uintptr_t& outPawn, int& outTeam, int& outPlayerIndex)
 {

@@ -1,3 +1,8 @@
+// ============================================================
+// UiAppearance.cpp
+// Controls the visual appearance of the menu: colors, text size, overall style.
+// ============================================================
+
 #include "UiAppearance.h"
 
 #include <Windows.h>

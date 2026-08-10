@@ -1,3 +1,8 @@
+// ============================================================
+// PatchRestore.cpp
+// Saves and restores memory patches applied to the game. Useful for cleanly disabling hacks.
+// ============================================================
+
 #include "PatchRestore.h"
 #include "Memory.h"
 #include <vector>

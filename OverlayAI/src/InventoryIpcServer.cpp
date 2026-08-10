@@ -1,3 +1,8 @@
+// ============================================================
+// InventoryIpcServer.cpp
+// IPC server that receives inventory commands from the overlay.
+// ============================================================
+
 #include "InventoryIpcServer.h"
 #include "Localization.h"
 

@@ -1,3 +1,8 @@
+// ============================================================
+// RadarHack.cpp
+// Shows a radar with all player positions, even those behind walls.
+// ============================================================
+
 #include "RadarHack.h"
 
 #include "Config.h"
@@ -50,6 +55,7 @@ void UpdateRadarHack() {
     if (g_lastUpdateMs != 0 && nowMs - g_lastUpdateMs < 100) return;
     g_lastUpdateMs = nowMs;
 
+// Gets the most recent player snapshot
     const FrameSnapshot& frame = GetCurrentFrameSnapshot();
     std::unordered_set<uintptr_t> currentPawns;
     currentPawns.reserve(frame.entities.size());

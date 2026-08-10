@@ -1,5 +1,10 @@
 #pragma once
 
+// ============================================================
+// Glow.h
+// Glow function declarations.
+// ============================================================
+
 #include <cstdint>
 
 struct GlowDiagnostics {

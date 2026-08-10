@@ -1,3 +1,8 @@
+// ============================================================
+// SpectatorList.cpp
+// Shows who is spectating your match.
+// ============================================================
+
 #include "SpectatorList.h"
 
 #include "Config.h"
@@ -29,6 +34,7 @@ namespace {
 
     std::string GetControllerName(uintptr_t controller, int index) {
         char name[128]{};
+// Reads a player name from memory
         ReadPlayerName(controller, name, sizeof(name));
         if (name[0] != '\0') return name;
         return "Player " + std::to_string(index);
@@ -60,6 +66,7 @@ namespace {
 
         const uintptr_t entityList = GetEntityListBase();
         if (!IsValidPtr(entityList)) return;
+// Gets the most recent player snapshot
         const FrameSnapshot& frame = GetCurrentFrameSnapshot();
         if (!IsValidPtr(frame.localPawn)) return;
         const uintptr_t nativeLocalController = mem.Read<uintptr_t>(

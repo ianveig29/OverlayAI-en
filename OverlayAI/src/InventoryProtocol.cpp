@@ -1,3 +1,8 @@
+// ============================================================
+// InventoryProtocol.cpp
+// Communication protocol between the overlay and the game process for the inventory system.
+// ============================================================
+
 #include "InventoryProtocol.h"
 
 #include "InventoryCatalog.h"

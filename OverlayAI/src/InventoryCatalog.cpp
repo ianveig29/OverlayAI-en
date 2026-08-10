@@ -1,3 +1,8 @@
+// ============================================================
+// InventoryCatalog.cpp
+// Game item catalog. Contains the list of all skins, knives and items available.
+// ============================================================
+
 #include "InventoryCatalog.h"
 #include "Localization.h"
 

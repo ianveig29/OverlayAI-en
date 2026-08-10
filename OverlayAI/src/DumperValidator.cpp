@@ -1,3 +1,8 @@
+// ============================================================
+// DumperValidator.cpp
+// Validates that dumper data (offsets) is correct and up to date.
+// ============================================================
+
 #include "DumperValidator.h"
 
 #include "ConsoleUi.h"

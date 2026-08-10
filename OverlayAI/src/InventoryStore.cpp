@@ -1,3 +1,8 @@
+// ============================================================
+// InventoryStore.cpp
+// Stores and manages modified inventory items. Maintains the list of fake items shown in the game.
+// ============================================================
+
 #include "InventoryStore.h"
 
 #include "InventoryCatalog.h"

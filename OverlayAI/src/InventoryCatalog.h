@@ -1,5 +1,10 @@
 #pragma once
 
+// ============================================================
+// InventoryCatalog.h
+// Inventory catalog declarations.
+// ============================================================
+
 #include "Types.h"
 
 #include <cstddef>

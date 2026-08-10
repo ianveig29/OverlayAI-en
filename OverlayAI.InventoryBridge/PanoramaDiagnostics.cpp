@@ -1,3 +1,8 @@
+// ============================================================
+// PanoramaDiagnostics.cpp
+// Diagnostics for the mounted Panorama system. Verifies that interfaces work correctly.
+// ============================================================
+
 #include "PanoramaDiagnostics.h"
 
 #include <windows.h>

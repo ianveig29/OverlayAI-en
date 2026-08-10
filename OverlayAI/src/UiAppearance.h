@@ -1,5 +1,10 @@
 #pragma once
 
+// ============================================================
+// UiAppearance.h
+// UI appearance function declarations.
+// ============================================================
+
 struct UiAppearanceSettings {
     float accent[3]{ 0.12f, 0.42f, 0.75f };
     float background[3]{ 0.11f, 0.12f, 0.15f };

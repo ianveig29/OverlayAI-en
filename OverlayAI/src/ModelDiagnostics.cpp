@@ -1,3 +1,8 @@
+// ============================================================
+// ModelDiagnostics.cpp
+// 3D model diagnostics. Verifies that character models load correctly.
+// ============================================================
+
 #include "ModelDiagnostics.h"
 #include "Entity.h"
 #include "Memory.h"
@@ -203,6 +208,7 @@ void UpdateModelDiagnostics() {
     if (g_lastSampleMs != 0 && now - g_lastSampleMs < 750) return;
     g_lastSampleMs = now;
 
+// Gets the most recent player snapshot
     const FrameSnapshot& frame = GetCurrentFrameSnapshot();
     const EntitySnapshot* selected = nullptr;
     EntitySnapshot localFallback{};

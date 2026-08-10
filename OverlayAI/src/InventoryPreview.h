@@ -1,5 +1,10 @@
 #pragma once
 
+// ============================================================
+// InventoryPreview.h
+// Inventory preview function declarations.
+// ============================================================
+
 struct ID3D11ShaderResourceView;
 
 enum class InventoryPreviewState {

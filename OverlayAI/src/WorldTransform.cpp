@@ -1,8 +1,14 @@
+// ============================================================
+// WorldTransform.cpp
+// Converts 3D world coordinates to 2D screen coordinates. Essential for drawing ESP.
+// ============================================================
+
 #include "WorldTransform.h"
 #include "Memory.h"
 #include "Offsets.h"
 #include <cmath>
 
+// Converts a 3D world position to 2D screen coordinates
 bool WorldToScreen(const Vector3& world, Vector3& screen, const Matrix4x4& matrix, int width, int height,
     int* modeOut, float* clipOut, float* ndcXOut, float* ndcYOut)
 {

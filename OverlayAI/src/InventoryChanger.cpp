@@ -1,3 +1,8 @@
+// ============================================================
+// InventoryChanger.cpp
+// Inventory Changer: allows changing skins, knives, gloves and other cosmetic items in the inventory.
+// ============================================================
+
 #include "InventoryChanger.h"
 
 #include "Config.h"

@@ -1,5 +1,10 @@
 #pragma once
 
+// ============================================================
+// Draw.h
+// Drawing function declarations.
+// ============================================================
+
 #include "Types.h"
 #include "imgui.h"
 

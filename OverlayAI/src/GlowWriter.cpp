@@ -1,3 +1,8 @@
+// ============================================================
+// GlowWriter.cpp
+// Writes glow data to game memory to make players appear bright.
+// ============================================================
+
 // Glow writer implementation
 #include "GlowInternal.h"
 #include "Memory.h"

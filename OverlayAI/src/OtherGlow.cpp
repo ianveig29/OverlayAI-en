@@ -1,3 +1,8 @@
+// ============================================================
+// OtherGlow.cpp
+// Additional glow: handles glow for non-player objects (weapons on ground, bomb, etc.).
+// ============================================================
+
 #include "OtherGlow.h"
 #include "WorldTransform.h"
 #include <algorithm>
@@ -413,6 +418,7 @@ void SubmitOtherGlowPose(const SkeletonPose& pose, const Matrix4x4& viewMatrix,
         if (!pose.valid[index]) continue;
         Vector3 screen{};
         float clipW = 0.0f;
+// Converts a 3D world position to 2D screen coordinates
         const bool inRegularRange = WorldToScreen(pose.bones[index], screen, viewMatrix,
             screenWidth, screenHeight, nullptr, &clipW);
         if (!inRegularRange && (!std::isfinite(clipW) || clipW <= 0.01f)) continue;

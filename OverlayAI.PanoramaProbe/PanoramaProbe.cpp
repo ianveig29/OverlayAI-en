@@ -1,3 +1,8 @@
+// ============================================================
+// PanoramaProbe.cpp
+// Diagnostic tool that investigates the Panorama system (CS2 game UI) to find memory interfaces.
+// ============================================================
+
 #include <Windows.h>
 
 #include <filesystem>

@@ -1,5 +1,10 @@
 #pragma once
 
+// ============================================================
+// Types.h
+// Defines basic data types used throughout the program: 3D vectors (positions), matrices (transforms), and ESP settings.
+// ============================================================
+
 #include <windows.h>
 #include <cstdint>
 

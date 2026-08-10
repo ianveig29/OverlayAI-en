@@ -1,4 +1,10 @@
 #pragma once
+
+// ============================================================
+// Stats.h
+// Statistics function declarations.
+// ============================================================
+
 #include <atomic>
 
 namespace Stats {

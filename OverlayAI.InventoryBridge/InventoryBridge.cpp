@@ -1,3 +1,8 @@
+// ============================================================
+// InventoryBridge.cpp
+// Core of the Inventory Bridge. Manages creation and application of fake inventory items in CS2 game memory.
+// ============================================================
+
 #include <windows.h>
 #include <strsafe.h>
 

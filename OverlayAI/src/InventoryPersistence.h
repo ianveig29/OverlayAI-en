@@ -1,5 +1,10 @@
 #pragma once
 
+// ============================================================
+// InventoryPersistence.h
+// Inventory persistence function declarations.
+// ============================================================
+
 #include "InventoryStore.h"
 
 #include <cstdio>
