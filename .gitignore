@@ -13,6 +13,8 @@
 *.tlog
 *.log
 *.cache
+*.lastbuildstate
+*.recipe
 
 # Visual Studio
 .vs/
@@ -27,14 +29,24 @@
 *.cachefile
 *.VC.db
 *.VC.VC.opendb
+*.vsidx
+*.ipch
 
 # Build directories
 x64/
 Debug/
 Release/
+[Aa]pp_data/
 
 # Tools (large binaries)
 tools/vrf/
+*.zip
 
 # Package staging
 package_staging*/
+
+# imgui state (generated at runtime)
+imgui.ini
+
+# Binary snapshots
+*.bin
