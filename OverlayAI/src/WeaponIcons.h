@@ -1,10 +1,5 @@
 #pragma once
 
-// ============================================================
-// WeaponIcons.h
-// Weapon icon function declarations.
-// ============================================================
-
 #include <string>
 
 struct ImFont;

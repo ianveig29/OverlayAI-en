@@ -1,10 +1,5 @@
 #pragma once
 
-// ============================================================
-// AntiSmoke.h
-// Anti-smoke function declarations.
-// ============================================================
-
 // Locate, validate, and apply the client smoke-render patch.
 bool RunAntiSmoke();
 

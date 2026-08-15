@@ -1,8 +1,3 @@
-// ============================================================
-// WeaponInfo.cpp
-// Reads weapon information: name, ammo, weapon type.
-// ============================================================
-
 #include "WeaponInfo.h"
 
 #include "Entity.h"

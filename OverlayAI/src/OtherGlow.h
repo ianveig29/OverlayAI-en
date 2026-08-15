@@ -1,10 +1,5 @@
 #pragma once
 
-// ============================================================
-// OtherGlow.h
-// Object glow function declarations.
-// ============================================================
-
 #include "Skeleton.h"
 #include <d3d11.h>
 

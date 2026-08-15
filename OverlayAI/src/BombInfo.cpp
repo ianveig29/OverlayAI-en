@@ -1,8 +1,3 @@
-// ============================================================
-// BombInfo.cpp
-// Draws bomb info on screen (time remaining, plant site, defuse status).
-// ============================================================
-
 #include "BombInfo.h"
 #include "Bomb.h"
 #include "imgui.h"

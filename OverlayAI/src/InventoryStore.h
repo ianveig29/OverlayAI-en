@@ -1,10 +1,5 @@
 #pragma once
 
-// ============================================================
-// InventoryStore.h
-// Inventory store function declarations.
-// ============================================================
-
 #include "InventoryTypes.h"
 
 struct InventoryMigrationResult {
@@ -44,6 +39,8 @@ bool EquipLocalInventoryItem(
     InventoryChangerSettings& state, LocalItemId localId, int team);
 bool UnequipLocalInventoryItem(
     InventoryChangerSettings& state, int itemType, int team);
+bool UnequipLocalInventoryItemById(
+    InventoryChangerSettings& state, LocalItemId localId, int team);
 bool IsLocalInventoryItemEquipped(
     const InventoryChangerSettings& state, LocalItemId localId);
 

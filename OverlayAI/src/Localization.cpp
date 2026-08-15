@@ -1,8 +1,3 @@
-// ============================================================
-// Localization.cpp
-// Translation system. Allows the menu to be displayed in different languages.
-// ============================================================
-
 #include "Localization.h"
 
 #include <Windows.h>

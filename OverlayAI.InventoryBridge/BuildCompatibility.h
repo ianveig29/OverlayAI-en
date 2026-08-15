@@ -1,10 +1,5 @@
 #pragma once
 
-// ============================================================
-// BuildCompatibility.h
-// Build compatibility function declarations.
-// ============================================================
-
 #include <windows.h>
 
 #include <cstddef>

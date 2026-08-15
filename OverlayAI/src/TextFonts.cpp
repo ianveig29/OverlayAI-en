@@ -1,8 +1,3 @@
-// ============================================================
-// TextFonts.cpp
-// Loads and configures text fonts used for drawing on screen.
-// ============================================================
-
 #include "TextFonts.h"
 
 #include "../imgui.h"

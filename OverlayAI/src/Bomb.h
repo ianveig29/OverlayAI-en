@@ -1,10 +1,5 @@
 #pragma once
 
-// ============================================================
-// Bomb.h
-// Bomb structures and function declarations.
-// ============================================================
-
 #include <vector>
 #include <string>
 #include <cstdio>
@@ -292,7 +287,6 @@ inline std::vector<PlantedC4Info> GatherPlantedC4Infos() {
 						if ((ph & 0x7FFF) == defIdx) { defController = c; break; }
 					}
 					char dn[128] = {};
-// Reads a player name from memory
 					if (IsValidPtr(defController)) ReadPlayerName(defController, dn, sizeof(dn));
 					if (dn[0] != '\0') info.defuserName = dn;
 					int raw = -1;

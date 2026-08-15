@@ -1,8 +1,3 @@
-// ============================================================
-// InventoryStore.cpp
-// Stores and manages modified inventory items. Maintains the list of fake items shown in the game.
-// ============================================================
-
 #include "InventoryStore.h"
 
 #include "InventoryCatalog.h"
@@ -91,6 +86,20 @@ namespace {
     void RefreshEquippedTeams(InventoryChangerSettings& state) {
         for (LocalInventoryItem& item : state.items) {
             if (!item.occupied) continue;
+            if (item.type == LocalInventoryWeaponSkin) {
+                if (item.equippedTeam < LocalInventoryTeamNone ||
+                    item.equippedTeam > LocalInventoryTeamBoth)
+                    item.equippedTeam = LocalInventoryTeamNone;
+                const InventoryCatalogItem* catalog =
+                    FindInventoryCatalogItem(item.type,
+                        item.definitionIndex, item.paintIndex);
+                const int compatibleTeam = catalog
+                    ? GetInventoryCatalogItemTeam(*catalog)
+                    : LocalInventoryTeamNone;
+                if (compatibleTeam != LocalInventoryTeamBoth)
+                    item.equippedTeam &= compatibleTeam;
+                continue;
+            }
             int team = LocalInventoryTeamNone;
             if (state.loadout.musicKit == item.localId ||
                 (state.loadout.terroristKnife == item.localId &&
@@ -293,6 +302,22 @@ bool EquipLocalInventoryItem(
     if (!catalog || !CanInventoryCatalogItemEquipForTeam(*catalog, team))
         return false;
 
+    if (item->type == LocalInventoryWeaponSkin) {
+        const int teamMask = team == LocalInventoryTeamBoth
+            ? LocalInventoryTeamBoth : team;
+        for (LocalInventoryItem& candidate : state.items) {
+            if (!candidate.occupied ||
+                candidate.type != LocalInventoryWeaponSkin ||
+                candidate.definitionIndex != item->definitionIndex)
+                continue;
+            candidate.equippedTeam &= ~teamMask;
+        }
+        item->equippedTeam |= teamMask;
+        state.enabled = true;
+        RefreshCompatibilitySlots(state);
+        return true;
+    }
+
     if (team == LocalInventoryTeamBoth && item->type != LocalInventoryMusicKit) {
         LocalItemId* terroristSlot = GetLoadoutSlot(
             state, item->type, LocalInventoryTeamTerrorist);
@@ -339,8 +364,26 @@ bool UnequipLocalInventoryItem(
     return changed;
 }
 
+bool UnequipLocalInventoryItemById(
+    InventoryChangerSettings& state, LocalItemId localId, int team) {
+    LocalInventoryItem* item = FindLocalInventoryItemById(state, localId);
+    if (!item || item->type != LocalInventoryWeaponSkin ||
+        (team != LocalInventoryTeamTerrorist &&
+            team != LocalInventoryTeamCounterTerrorist &&
+            team != LocalInventoryTeamBoth))
+        return false;
+    const int previousTeam = item->equippedTeam;
+    item->equippedTeam &= ~team;
+    RefreshCompatibilitySlots(state);
+    return previousTeam != item->equippedTeam;
+}
+
 bool IsLocalInventoryItemEquipped(
     const InventoryChangerSettings& state, LocalItemId localId) {
+    const LocalInventoryItem* item = FindLocalInventoryItemById(
+        state, localId);
+    if (item && item->type == LocalInventoryWeaponSkin)
+        return item->equippedTeam != LocalInventoryTeamNone;
     return localId != kInvalidLocalItemId &&
         (state.loadout.musicKit == localId ||
             state.loadout.terroristKnife == localId ||

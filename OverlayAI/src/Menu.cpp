@@ -1,8 +1,3 @@
-// ============================================================
-// Menu.cpp
-// Draws the program menu with tabs: Visuals, Aim, Movement, Inventory, Misc. Lets you change all options from a graphical interface.
-// ============================================================
-
 #include "Menu.h"
 #include <algorithm>
 #include "ModelDiagnostics.h"
@@ -1553,7 +1548,6 @@ void RenderEspMenu() {
                     ImGui::TextDisabled("Controller ID: %d | Service ID: %u",
                         status.currentControllerMusicId,
                         static_cast<unsigned>(status.currentServiceMusicId));
-// Gets the most recent player snapshot
                     const FrameSnapshot& inventoryFrame = GetCurrentFrameSnapshot();
                     ImGui::TextDisabled(
                         "Account Controller: 0x%llX | Active Controller: 0x%llX",
@@ -1852,7 +1846,6 @@ void RenderEspMenu() {
                     "Enable Aimlock Calibrator##aim_cal"), &g_Esp.enableAimlockCalibrator);
                 if (g_Esp.enableAimlockCalibrator) {
                     ImGui::Text("%s", Localized(
-// Aimlock logic: adjusts aim towards enemy
                         "Calibracion Aimlock (unidades del mundo sobre los pies)",
                         "Aimlock calibration (world units above feet)"));
                     ImGui::SliderFloat(Localized("Offset cabeza##cal", "Head Offset##cal"),
@@ -1942,18 +1935,15 @@ void RenderEspMenu() {
                     const float actionWidth = ImGui::GetContentRegionAvail().x;
                     ImGui::BeginDisabled(selected.empty());
                     if (ImGui::Button("Guardar", ImVec2(actionWidth, 0.0f))) {
-// Saves a named configuration preset
                         if (SaveConfigPreset(selected))
                             snprintf(status, sizeof(status), "Guardado: %s", displayName(selected).c_str());
                     }
                     if (ImGui::Button("Cargar", ImVec2(actionWidth, 0.0f))) {
-// Loads a saved configuration preset
                         if (LoadConfigPreset(selected))
                             snprintf(status, sizeof(status), "Cargado: %s", displayName(selected).c_str());
                     }
                     ImGui::EndDisabled();
                     if (ImGui::Button("Restablecer", ImVec2(actionWidth, 0.0f))) {
-// Resets all settings to factory defaults
                         ResetConfigDefaults();
                         snprintf(status, sizeof(status), "Valores predeterminados restaurados");
                     }
@@ -1978,7 +1968,6 @@ void RenderEspMenu() {
                 ImGui::SameLine();
                 if (ImGui::Button("Crear", ImVec2(-1.0f, 0.0f)) || submitted) {
                     std::string created;
-// Saves a named configuration preset
                     if (SaveConfigPreset(newPresetName, &created)) {
                         selected = created;
                         newPresetName[0] = '\0';

@@ -1,10 +1,5 @@
 #pragma once
 
-// ============================================================
-// InventoryProtocol.h
-// Inventory protocol function declarations.
-// ============================================================
-
 #include "InventoryTypes.h"
 
 #include <cstdint>

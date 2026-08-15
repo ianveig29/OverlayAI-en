@@ -1,8 +1,3 @@
-// ============================================================
-// InventoryTests.cpp
-// Automated tests for the inventory system. Verifies that items are applied correctly.
-// ============================================================
-
 #include "InventoryCatalog.h"
 #include "InventoryIpcServer.h"
 #include "InventoryPersistence.h"
@@ -102,12 +97,14 @@ namespace {
     }
 
     LocalInventoryItem MakeWeaponSkin(
-        int definitionIndex, bool requireStatTrak = false) {
+        int definitionIndex, bool requireStatTrak = false,
+        int paintIndex = 0) {
         LocalInventoryItem item;
         for (std::size_t index = 0; index < GetInventoryCatalogSize(); ++index) {
             const InventoryCatalogItem* catalogItem = GetInventoryCatalogItem(index);
             if (!catalogItem || catalogItem->type != LocalInventoryWeaponSkin ||
                 catalogItem->definitionIndex != definitionIndex ||
+                (paintIndex > 0 && catalogItem->paintIndex != paintIndex) ||
                 (requireStatTrak &&
                     !IsInventoryCatalogItemStatTrakAllowed(*catalogItem)))
                 continue;
@@ -447,16 +444,20 @@ namespace {
 
     void TestWeaponSkinOfflineFlow() {
         InventoryChangerSettings state;
-        LocalInventoryItem ak = MakeWeaponSkin(7, true);
+        LocalInventoryItem ak = MakeWeaponSkin(7, true, 801);
         LocalInventoryItem awp = MakeWeaponSkin(9);
         LocalInventoryItem glock = MakeWeaponSkin(4);
         Check(ak.definitionIndex == 7 && awp.definitionIndex == 9 &&
                 glock.definitionIndex == 4,
             "El catalogo debe contener skins para AK-47, AWP y Glock-18.");
+        const InventoryCatalogItem* akCatalog = FindInventoryCatalogItem(
+            LocalInventoryWeaponSkin, 7, 801);
+        Check(akCatalog && akCatalog->legacyModel,
+            "AK-47 Asiimov debe conservar el indicador de modelo legacy.");
         Check(IsInventoryItemNativeCollectionSupported(
                 LocalInventoryWeaponSkin) &&
-                !IsInventoryItemLoadoutSupported(LocalInventoryWeaponSkin),
-            "Las skins deben publicarse como coleccion sin ocupar un slot generico.");
+                IsInventoryItemLoadoutSupported(LocalInventoryWeaponSkin),
+            "Las skins deben admitir loadout sin compartir un slot generico.");
         if (ak.definitionIndex != 7 || awp.definitionIndex != 9 ||
             glock.definitionIndex != 4)
             return;
@@ -473,6 +474,26 @@ namespace {
         Check(akSlot >= 0 && awpSlot >= 0 && glockSlot >= 0,
             "Tres skins validas deben poder guardarse en la coleccion local.");
         if (akSlot < 0 || awpSlot < 0 || glockSlot < 0) return;
+
+        Check(EquipLocalInventoryItem(state,
+                state.items[akSlot].localId,
+                LocalInventoryTeamTerrorist) &&
+                EquipLocalInventoryItem(state,
+                    state.items[awpSlot].localId,
+                    LocalInventoryTeamCounterTerrorist),
+            "Las armas deben aceptar el equipo elegido desde el loadout nativo.");
+        Check(state.items[akSlot].equippedTeam ==
+                LocalInventoryTeamTerrorist &&
+                state.items[awpSlot].equippedTeam ==
+                LocalInventoryTeamCounterTerrorist,
+            "Cada arma debe conservar su equipo sin desplazar otras definiciones.");
+        Check(!EquipLocalInventoryItem(state,
+                state.items[akSlot].localId,
+                LocalInventoryTeamCounterTerrorist) &&
+                !EquipLocalInventoryItem(state,
+                    state.items[glockSlot].localId,
+                    LocalInventoryTeamCounterTerrorist),
+            "AK-47 y Glock-18 no deben poder equiparse para CT.");
 
         Check(CountPendingLocalInventoryReveals(state) == 3,
             "Tres skins nuevas deben formar una unica cola NEW ITEM 1/3.");
@@ -491,7 +512,10 @@ namespace {
                 akSnapshot.at("stattrak") == true &&
                 akSnapshot.at("stattrak_count") == 321 &&
                 akSnapshot.at("quality") == 9 &&
-                akSnapshot.at("seed") == 777,
+                akSnapshot.at("seed") == 777 &&
+                akSnapshot.at("legacy_model") == true &&
+                akSnapshot.at("equipped_team") ==
+                    LocalInventoryTeamTerrorist,
             "Una skin StatTrak debe publicarse como Strange sin perder contador o seed.");
         Check(snapshot.at("payload").at("items").at(1).at("quality") == 4,
             "Una skin normal debe conservar la calidad Unique del catalogo.");
@@ -514,7 +538,8 @@ namespace {
         const LocalInventoryItem* restoredAk = FindLocalInventoryItemById(
             loaded, state.items[akSlot].localId);
         Check(restoredAk && restoredAk->statTrak &&
-                restoredAk->statTrakCount == 321 && restoredAk->seed == 777,
+                restoredAk->statTrakCount == 321 && restoredAk->seed == 777 &&
+                restoredAk->equippedTeam == LocalInventoryTeamTerrorist,
             "Configs debe restaurar la identidad y StatTrak estatico del arma.");
         Check(CountPendingLocalInventoryReveals(loaded) == 3,
             "Configs debe restaurar la cola NEW ITEM de las tres armas.");
@@ -916,24 +941,30 @@ namespace {
 }
 
 int main() {
-    TestIndependentInstancesAndLoadout();
-    TestInventoryMasterControlIsIndependent();
-    TestVersion3RoundTrip();
-    TestLegacyMigrationAndInvalidState();
-    TestStatTrakCountValidation();
-    TestCatalogDopplerPhases();
-    TestMiscInventoryCatalogAndSnapshot();
-    TestMusicKitStatTrakFlow();
-    TestWeaponSkinOfflineFlow();
-    TestKnifeAndAgentLoadouts();
-    TestAgentRuntimeCoverage();
-    TestKnifeRuntimeTable();
-    TestProtocolValidationAndSnapshot();
-    TestPanoramaContractVersion();
-    TestPhase4MusicKitFlow();
-    TestManualRevealQueue();
-    TestMusicKitApplyRevision();
-    TestNamedPipeTransport();
+#define RUN_TEST(test) do { \
+        std::printf("[RUN] %s\n", #test); \
+        std::fflush(stdout); \
+        test(); \
+    } while (false)
+    RUN_TEST(TestIndependentInstancesAndLoadout);
+    RUN_TEST(TestInventoryMasterControlIsIndependent);
+    RUN_TEST(TestVersion3RoundTrip);
+    RUN_TEST(TestLegacyMigrationAndInvalidState);
+    RUN_TEST(TestStatTrakCountValidation);
+    RUN_TEST(TestCatalogDopplerPhases);
+    RUN_TEST(TestMiscInventoryCatalogAndSnapshot);
+    RUN_TEST(TestMusicKitStatTrakFlow);
+    RUN_TEST(TestWeaponSkinOfflineFlow);
+    RUN_TEST(TestKnifeAndAgentLoadouts);
+    RUN_TEST(TestAgentRuntimeCoverage);
+    RUN_TEST(TestKnifeRuntimeTable);
+    RUN_TEST(TestProtocolValidationAndSnapshot);
+    RUN_TEST(TestPanoramaContractVersion);
+    RUN_TEST(TestPhase4MusicKitFlow);
+    RUN_TEST(TestManualRevealQueue);
+    RUN_TEST(TestMusicKitApplyRevision);
+    RUN_TEST(TestNamedPipeTransport);
+#undef RUN_TEST
     if (g_failures != 0) {
         std::printf("Inventory tests: %d error(es).\n", g_failures);
         return 1;

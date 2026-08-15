@@ -1,8 +1,3 @@
-// ============================================================
-// InventoryPersistence.cpp
-// Saves and loads modified inventory items to a file so they persist between sessions.
-// ============================================================
-
 #include "InventoryPersistence.h"
 
 #include <cerrno>

@@ -1,8 +1,3 @@
-// ============================================================
-// InventorySocache.cpp
-// Handles the SOCache (game object cache) to insert modified inventory items.
-// ============================================================
-
 #include "InventorySocache.h"
 
 #include "BridgeLogging.h"
@@ -958,10 +953,10 @@ void LogInventorySocacheItemViewDiagnostics(
     (void)Read(source + 0x1BA, sourceDefinition);
     (void)Read(destination + 0x1E8, destinationInitialized);
     (void)Read(source + 0x1E8, sourceInitialized);
-    (void)Read(destination + 0x218, destinationAttributes);
-    (void)Read(source + 0x218, sourceAttributes);
-    (void)Read(destination + 0x290, destinationNetworkedAttributes);
-    (void)Read(source + 0x290, sourceNetworkedAttributes);
+    (void)Read(destination + 0x210, destinationAttributes);
+    (void)Read(source + 0x210, sourceAttributes);
+    (void)Read(destination + 0x288, destinationNetworkedAttributes);
+    (void)Read(source + 0x288, sourceNetworkedAttributes);
 
     void* destinationStaticData = nullptr;
     void* sourceStaticData = nullptr;
@@ -1188,6 +1183,35 @@ bool ReadInventorySocacheLoadoutSelection(
         selection.localId = generated->localId;
     }
     return true;
+}
+
+bool ResolveInventorySocacheLoadoutItemView(
+    uint64_t localId, int team, uintptr_t itemViewItemIdOffset,
+    uintptr_t& itemView, int& loadoutSlot) noexcept {
+    itemView = 0;
+    loadoutSlot = -1;
+    GeneratedItemState* generated = FindGeneratedItem(localId);
+    if (!generated || !IsItemInTypeCache(generated->item) ||
+        !IsValidLoadoutContext(team, 1) || !itemViewItemIdOffset)
+        return false;
+
+    constexpr int kFirstWeaponLoadoutSlot = 1;
+    constexpr int kLastWeaponLoadoutSlot = 53;
+    constexpr int kGloveLoadoutSlot = 41;
+    for (int slot = kFirstWeaponLoadoutSlot;
+        slot <= kLastWeaponLoadoutSlot; ++slot) {
+        if (slot == kGloveLoadoutSlot) continue;
+        uint64_t currentItemId = 0;
+        uintptr_t currentItemView = 0;
+        if (!ReadLoadoutItemId(team, slot, itemViewItemIdOffset,
+                currentItemId, &currentItemView) ||
+            currentItemId != generated->itemId || !currentItemView)
+            continue;
+        itemView = currentItemView;
+        loadoutSlot = slot;
+        return true;
+    }
+    return false;
 }
 
 bool ResolveInventorySocacheGeneratedItemId(

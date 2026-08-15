@@ -1,8 +1,3 @@
-// ============================================================
-// InventoryProtocol.cpp
-// Communication protocol between the overlay and the game process for the inventory system.
-// ============================================================
-
 #include "InventoryProtocol.h"
 
 #include "InventoryCatalog.h"
@@ -307,6 +302,7 @@ std::string BuildInventorySnapshotMessage(
             {"rarity_rank", catalogItem
                 ? GetInventoryRarityRank(catalogItem->rarity) : 0},
             {"quality", GetEffectiveInventoryQuality(item, catalogItem)},
+            {"legacy_model", catalogItem ? catalogItem->legacyModel : false},
             {"rarity_color", catalogItem ? catalogItem->rarityColor : 0},
             {"image_url", catalogItem ? catalogItem->imageUrl : ""}
         });

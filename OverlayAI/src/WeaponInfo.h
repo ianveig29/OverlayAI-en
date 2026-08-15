@@ -1,10 +1,5 @@
 #pragma once
 
-// ============================================================
-// WeaponInfo.h
-// Weapon info function declarations.
-// ============================================================
-
 #include <cstdint>
 #include <string>
 

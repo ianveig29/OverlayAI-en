@@ -1,8 +1,3 @@
-// ============================================================
-// Esp.cpp
-// ESP (Extra Sensory Perception). Draws on-screen info about enemy and allied players: boxes, names, health bars, armor, skeletons, weapons, etc.
-// ============================================================
-
 #include "Esp.h"
 #include "Config.h"
 #include "Draw.h"
@@ -384,7 +379,6 @@ namespace {
 
         for (const Vector3& corner : corners) {
             Vector3 screen{};
-// Converts a 3D world position to 2D screen coordinates
             if (!WorldToScreen(corner, screen, viewMatrix, screenWidth, screenHeight)) continue;
             ++projectedCorners;
             minX = (std::min)(minX, screen.x);
@@ -411,7 +405,6 @@ namespace {
         const Matrix4x4& viewMatrix, int screenWidth, int screenHeight)
     {
         float clipW = 0.0f;
-// Converts a 3D world position to 2D screen coordinates
         const bool inRegularRange = WorldToScreen(world, screen, viewMatrix,
             screenWidth, screenHeight, nullptr, &clipW);
         if (!inRegularRange && (!std::isfinite(clipW) || clipW <= 0.01f))
@@ -526,7 +519,6 @@ void RenderESP(int screenWidth, int screenHeight) {
         PreparedEspEntity prepared{};
         prepared.feetWorld = IsValidPtr(snap.sceneNode)
             ? mem.Read<Vector3>(snap.sceneNode + Offsets::m_vecAbsOrigin)
-// Gets the X Y Z position of a player
             : GetPawnWorldPos(snap.pawn);
         if (!std::isfinite(prepared.feetWorld.x) || !std::isfinite(prepared.feetWorld.y) ||
             !std::isfinite(prepared.feetWorld.z) ||
@@ -546,7 +538,6 @@ void RenderESP(int screenWidth, int screenHeight) {
 
         if (g_Esp.showNames) {
             char playerName[128] = {};
-// Reads a player name from memory
             ReadPlayerName(snap.controller, playerName, sizeof(playerName));
             if (playerName[0] == '\0') snprintf(playerName, sizeof(playerName), "Player %d", snap.index);
             prepared.playerName = playerName;

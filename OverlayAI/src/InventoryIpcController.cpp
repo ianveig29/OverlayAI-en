@@ -1,8 +1,3 @@
-// ============================================================
-// InventoryIpcController.cpp
-// IPC (inter-process communication) controller for sending inventory commands to the game.
-// ============================================================
-
 #include "InventoryIpcController.h"
 
 #include "Config.h"
@@ -279,7 +274,10 @@ struct InventoryIpcController::Impl {
             const int team = item
                 ? ResolveLoadoutTeam(*item, command.team)
                 : LocalInventoryTeamBoth;
-            const bool unequipped = UnequipLocalInventoryItemSelection(itemType, team);
+            const bool unequipped = item &&
+                    item->type == LocalInventoryWeaponSkin
+                ? UnequipLocalInventoryItemById(item->localId, team)
+                : UnequipLocalInventoryItemSelection(itemType, team);
             WriteInventoryLog(InventoryLogCategory::Action, InventoryLogLevel::Info,
                 "Unequip Local ID %llu: %s.",
                 static_cast<unsigned long long>(previousId),

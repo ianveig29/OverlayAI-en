@@ -1,10 +1,5 @@
 #pragma once
 
-// ============================================================
-// InventoryCatalog.h
-// Inventory catalog declarations.
-// ============================================================
-
 #include "Types.h"
 
 #include <cstddef>
@@ -24,6 +19,7 @@ struct InventoryCatalogItem {
     const char* group = "";
     const char* rarity = "";
     const char* imageUrl = "";
+    bool legacyModel = false;
 };
 
 const InventoryCatalogItem* GetInventoryCatalog();

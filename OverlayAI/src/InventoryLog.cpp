@@ -1,8 +1,3 @@
-// ============================================================
-// InventoryLog.cpp
-// Logging system for the inventory module. Records which items are applied and errors.
-// ============================================================
-
 #include "InventoryLog.h"
 
 #include <windows.h>
@@ -32,7 +27,7 @@ const char* GetInventoryLogCategoryName(InventoryLogCategory category) {
 void WriteInventoryLog(
     InventoryLogCategory category, InventoryLogLevel level,
     const char* format, ...) {
-    char message[256]{};
+    char message[768]{};
     va_list arguments;
     va_start(arguments, format);
     vsnprintf_s(message, sizeof(message), _TRUNCATE, format ? format : "", arguments);

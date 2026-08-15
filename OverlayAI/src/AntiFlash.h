@@ -1,10 +1,4 @@
 #pragma once
-
-// ============================================================
-// AntiFlash.h
-// Anti-flash function declarations.
-// ============================================================
-
 #include <cstdint>
 
 // Returns flash overlay alpha for local player (0.0 - 1.0 or higher depending on engine)

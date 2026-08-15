@@ -1,10 +1,5 @@
 #pragma once
 
-// ============================================================
-// ConsoleUi.h
-// Console function declarations.
-// ============================================================
-
 #include "InventoryLog.h"
 
 #include <cstdint>

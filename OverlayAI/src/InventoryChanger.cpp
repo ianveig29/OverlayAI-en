@@ -1,8 +1,3 @@
-// ============================================================
-// InventoryChanger.cpp
-// Inventory Changer: allows changing skins, knives, gloves and other cosmetic items in the inventory.
-// ============================================================
-
 #include "InventoryChanger.h"
 
 #include "Config.h"
@@ -384,6 +379,13 @@ bool UnequipLocalInventoryItemSelection(int itemType, int team) {
         g_InventoryChanger, itemType, team);
     if (itemType == LocalInventoryMusicKit)
         RestoreOriginalState();
+    RequestInventoryChangerRefresh();
+    return changed;
+}
+
+bool UnequipLocalInventoryItemById(LocalItemId localId, int team) {
+    const bool changed = ::UnequipLocalInventoryItemById(
+        g_InventoryChanger, localId, team);
     RequestInventoryChangerRefresh();
     return changed;
 }

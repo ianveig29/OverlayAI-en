@@ -1,14 +1,14 @@
-# Investigacion de montaje Panorama - Fase 3B
+# Panorama Mount Research - Phase 3B
 
-Fecha de comprobacion: 2026-07-26
+Verification date: 2026-07-26
 
-## Resultado
+## Result
 
-La build instalada contiene y registra las interfaces de Panorama necesarias como concepto, pero no publica una ABI suficiente para invocar de forma segura la creacion de paneles desde un modulo propio. El montaje real no se implementa en esta fase porque hacerlo exigiria asumir indices de vtable, firmas y reglas de hilo no verificadas.
+The installed build contains and registers the necessary Panorama interfaces as a concept, but does not publish a sufficient ABI to safely invoke panel creation from a standalone module. Real mounting is not implemented in this phase because it would require assuming unverified vtable indices, signatures and thread rules.
 
-## Evidencia local
+## Local evidence
 
-Modulos cargados por el CS2 activo:
+Modules loaded by the active CS2:
 
 - `panorama.dll`
 - `panoramauiclient.dll`
@@ -16,26 +16,26 @@ Modulos cargados por el CS2 activo:
 - `resourcesystem.dll`
 - `client.dll`
 
-Archivos examinados:
+Files examined:
 
 - `panorama.dll`: SHA-256 `B8D3E9450596E31310B55BBA9FD58079F12AA5DFD518BE66B6B4567F56132A60`
 - `panoramauiclient.dll`: SHA-256 `6CE4EE14C5BFEDCB070886C7247D8B90226358F098E4B4BF6BEB22A19FC5755D`
 
-Exportaciones relevantes:
+Relevant exports:
 
-- Ambos modulos exportan `CreateInterface`.
-- `panorama.dll` tambien exporta `CreatePanoramaUIEngineInternal`, sin firma publica.
-- `CreatePanel`, `BLoadLayout` y `RunScript` existen internamente, pero no son exportaciones C utilizables directamente.
+- Both modules export `CreateInterface`.
+- `panorama.dll` also exports `CreatePanoramaUIEngineInternal`, without a public signature.
+- `CreatePanel`, `BLoadLayout` and `RunScript` exist internally, but are not usable C exports.
 
-El probe independiente confirmo sin conectarse a CS2:
+The standalone probe confirmed without connecting to CS2:
 
-- `PanoramaUIEngine001` en `panorama.dll`: disponible, retorno `0`.
-- `PanoramaUIClient001` en `panoramauiclient.dll`: disponible, retorno `0`.
-- Un nombre de interfaz inexistente devuelve `nullptr` y retorno `1`.
+- `PanoramaUIEngine001` in `panorama.dll`: available, returned `0`.
+- `PanoramaUIClient001` in `panoramauiclient.dll`: available, returned `0`.
+- A non-existent interface name returns `nullptr` and `1`.
 
-## Restriccion de recursos
+## Resource restriction
 
-La configuracion instalada `csgo_core/gameinfo.gi` contiene:
+The installed configuration `csgo_core/gameinfo.gi` contains:
 
 ```text
 Panorama
@@ -45,40 +45,41 @@ Panorama
 }
 ```
 
-Los strings de `panorama.dll` confirman la politica asociada:
+The strings in `panorama.dll` confirm the associated policy:
 
 - `Error loading %s: Addons cannot add layouts.`
-- Los addons, cuando estan permitidos, solo pueden usar `panorama/layout/custom_game/`.
+- Addons, when permitted, can only use `panorama/layout/custom_game/`.
 
-Por tanto, colocar XML, CSS o JavaScript junto al ejecutable no hace que el cliente normal los registre. Modificar los VPK o `gameinfo.gi` no es una solucion aceptable: altera archivos oficiales, requiere reinicio y no satisface el objetivo online y reversible.
+Therefore, placing XML, CSS or JavaScript next to the executable does not cause the normal client to register them. Modifying the VPKs or `gameinfo.gi` is not an acceptable solution: it alters official files, requires a restart and does not satisfy the online and reversible goal.
 
-## Contexto de menu identificado
+## Identified menu context
 
-La vista oficial de inventario usa un panel con `useglobalcontext="true"`. Los puntos de anclaje observados son:
+The official inventory view uses a panel with `useglobalcontext="true"`. The observed anchor points are:
 
-- `InventoryMainContainer`: contenedor principal y lugar donde CS2 crea su notificacion de equipamiento.
-- `InventoryMain`: contenido de listas y categorias.
-- `id-navbar-tabs-catagory-btns-container`: navegacion de categorias.
+- `InventoryMainContainer`: main container and where CS2 creates its equipment notification.
+- `InventoryMain`: list and category content.
+- `id-navbar-tabs-catagory-btns-container`: category navigation.
 
-El script oficial registra `ReadyForDisplay`, `UnreadyForDisplay` y `Cancelled`, y libera handlers al ocultarse. Un futuro host debera respetar exactamente ese ciclo y buscar el root de OverlayAI antes de crearlo para evitar duplicados.
+The official script registers `ReadyForDisplay`, `UnreadyForDisplay` and `Cancelled`, and releases handlers when hidden. A future host must respect exactly this cycle and look for the OverlayAI root before creating it to avoid duplicates.
 
-## Frontera tecnica
+## Technical boundary
 
-Para montar el panel en el cliente normal todavia faltan datos verificables:
+To mount the panel in the normal client, verifiable data is still missing:
 
-1. Definicion binaria de `IUIEngine`/`IPanoramaUIClient` para esta build.
-2. Metodo y firma para obtener el panel de contexto global activo.
-3. Metodo y firma para agendar trabajo en el hilo de Panorama.
-4. Metodo soportado para registrar recursos propios o ejecutar el frontend embebido.
-5. Reglas de ownership para paneles y callbacks durante recargas del menu.
+1. Binary definition of `IUIEngine`/`IPanoramaUIClient` for this build.
+2. Method and signature to obtain the active global context panel.
+3. Method and signature to schedule work on the Panorama thread.
+4. Supported method to register custom resources or execute the embedded frontend.
+5. Ownership rules for panels and callbacks during menu reloads.
 
-La existencia de `PanoramaUIEngine001` no demuestra ninguno de esos cinco puntos. Invocar una posicion de vtable deducida por ensayo y error no se considera una ABI verificada.
+The existence of `PanoramaUIEngine001` does not prove any of these five points. Invoking a vtable position deduced by trial and error is not considered a verified ABI.
 
 ## Decision
 
-No se modifica `OtroInyector`, no se inyecta ningun modulo y no se llama a `CreatePanoramaUIEngineInternal`. El contrato frontend/IPC permanece valido y el probe queda como comprobacion rapida tras actualizaciones.
+No module is injected, no `CreatePanoramaUIEngineInternal` is called and no game files are modified. The frontend/IPC contract remains valid and the probe is kept as a quick check after updates.
 
-Las Fases 4 y 5 se completan contra el host simulado y el IPC real: NEW ITEM,
-continuar, coleccion, filtros, busqueda, detalles, equipar, desequipar, duplicar,
-eliminar, reconexion e idempotencia. Cuando exista un host interno con ABI
-documentada, esa vertical se conectara sin cambiar el backend ni el frontend.
+Phases 4 and 5 are completed against the simulated host and the real IPC: NEW ITEM,
+continue, collection, filters, search, details, equip, unequip, duplicate,
+delete, reconnection and idempotency. When an internal host with a documented
+ABI exists, that vertical will be connected without changing the backend or
+the frontend.

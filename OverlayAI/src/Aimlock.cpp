@@ -1,8 +1,3 @@
-// ============================================================
-// Aimlock.cpp
-// Aimlock: helps aiming. Calculates which enemy is closest to the cursor and adjusts the aim towards them.
-// ============================================================
-
 #include "Aimlock.h"
 #include "AntiFlash.h"
 #include "AntiSmoke.h"
@@ -79,7 +74,6 @@ namespace {
         std::array<Vector3, 3> projected{};
         std::array<bool, 3> valid{};
         for (size_t i = 0; i < points.size(); ++i)
-// Converts a 3D world position to 2D screen coordinates
             valid[i] = WorldToScreen(points[i], projected[i], matrix, screenWidth, screenHeight);
 
         if (g_Aim.targetPart >= 0 && g_Aim.targetPart <= 2) {
@@ -188,7 +182,6 @@ void RunAimlock(int screenWidth, int screenHeight) {
         return;
     }
 
-// Gets the most recent player snapshot
     const FrameSnapshot& frame = GetCurrentFrameSnapshot();
     if (!IsValidPtr(frame.localPawn)) {
         ResetAimTarget();
@@ -275,7 +268,6 @@ void RunAimlock(int screenWidth, int screenHeight) {
     // instead of aiming at the empty midpoint between them.
     if (hasAlternateLeg && (g_Aim.targetPart == 2 || g_Aim.targetPart > 2)) {
         Vector3 alternateScreen{};
-// Converts a 3D world position to 2D screen coordinates
         if (WorldToScreen(alternateLeg, alternateScreen, lateMatrix, screenWidth, screenHeight)) {
             const float alternateDistance = ScreenDistance(alternateScreen, centerX, centerY);
             if (!targetValid || alternateDistance < targetDistance) {

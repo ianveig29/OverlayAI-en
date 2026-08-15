@@ -1,10 +1,5 @@
 #pragma once
 
-// ============================================================
-// InventoryValidator.h
-// Inventory validator function declarations.
-// ============================================================
-
 #include "InventoryTypes.h"
 
 #include <cstddef>

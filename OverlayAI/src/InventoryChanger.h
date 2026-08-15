@@ -1,10 +1,5 @@
 #pragma once
 
-// ============================================================
-// InventoryChanger.h
-// Inventory changer function declarations.
-// ============================================================
-
 #include "Types.h"
 
 #include <cstdint>
@@ -50,5 +45,6 @@ bool EquipLocalMusicKitById(LocalItemId localId);
 void UnequipLocalMusicKitSelection();
 bool EquipLocalInventoryItemById(LocalItemId localId, int team);
 bool UnequipLocalInventoryItemSelection(int itemType, int team);
+bool UnequipLocalInventoryItemById(LocalItemId localId, int team);
 bool IsLocalInventoryItemEquippedById(LocalItemId localId);
 int GetSelectedLocalInventorySlot();

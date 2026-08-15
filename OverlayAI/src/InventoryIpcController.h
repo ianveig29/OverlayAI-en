@@ -1,10 +1,5 @@
 #pragma once
 
-// ============================================================
-// InventoryIpcController.h
-// IPC controller function declarations.
-// ============================================================
-
 #include "InventoryIpcServer.h"
 
 #include <memory>

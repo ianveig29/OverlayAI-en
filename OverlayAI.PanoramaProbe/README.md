@@ -1,13 +1,13 @@
 # OverlayAI Panorama Probe
 
-Herramienta de diagnostico externa. Carga `panorama.dll` y `panoramauiclient.dll` en su propio proceso y consulta nombres conocidos mediante la exportacion `CreateInterface`.
+External diagnostic tool. Loads `panorama.dll` and `panoramauiclient.dll` in its own process and queries known names via the `CreateInterface` export.
 
-No abre `cs2.exe`, no lee ni escribe su memoria y no invoca metodos de las interfaces devueltas.
+It does not open `cs2.exe`, does not read or write its memory and does not invoke methods of the returned interfaces.
 
-Uso:
+Usage:
 
 ```powershell
 OverlayAI.PanoramaProbe.exe "C:\Program Files (x86)\Steam\steamapps\common\Counter-Strike Global Offensive\game\bin\win64"
 ```
 
-Un resultado `verified` confirma exclusivamente que las fabricas y versiones nominales siguen registradas. No confirma compatibilidad de vtables ni autoriza llamadas internas.
+A `verified` result exclusively confirms that the named factories and versions remain registered. It does not confirm vtable compatibility or authorize internal calls.

@@ -1,8 +1,3 @@
-// ============================================================
-// PanoramaMount.cpp
-// Mounts the Panorama system (game UI) to inject inventory interfaces.
-// ============================================================
-
 #include "PanoramaMount.h"
 
 #include <windows.h>

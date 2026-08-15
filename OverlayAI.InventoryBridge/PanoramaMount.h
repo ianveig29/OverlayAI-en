@@ -1,10 +1,5 @@
 #pragma once
 
-// ============================================================
-// PanoramaMount.h
-// Panorama mount function declarations.
-// ============================================================
-
 #include <cstdint>
 
 enum class PanoramaInventoryCommandType {

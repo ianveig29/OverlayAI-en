@@ -1,8 +1,3 @@
-// ============================================================
-// Triggerbot.cpp
-// Triggerbot: automatically fires when the cursor is on an enemy. Includes special logic for the R8 revolver.
-// ============================================================
-
 #include "Triggerbot.h"
 #include "Config.h"
 #include "Entity.h"
@@ -72,7 +67,6 @@ namespace {
         const float centerX = screenWidth * 0.5f;
         const float centerY = screenHeight * 0.5f;
         float bestDistance = 1e9f;
-// Gets the most recent player snapshot
         const FrameSnapshot& frame = GetCurrentFrameSnapshot();
 
         for (const EntitySnapshot& snapshot : frame.entities) {
@@ -84,9 +78,7 @@ namespace {
             Vector3 feetScreen{};
             Vector3 headScreen{};
             const Vector3 fallbackHead{ origin.x, origin.y, origin.z + 72.0f };
-// Converts a 3D world position to 2D screen coordinates
             if (!WorldToScreen(origin, feetScreen, viewMatrix, screenWidth, screenHeight) ||
-// Converts a 3D world position to 2D screen coordinates
                 !WorldToScreen(fallbackHead, headScreen, viewMatrix, screenWidth, screenHeight)) continue;
 
             const float projectedHeight = std::fabs(feetScreen.y - headScreen.y);
@@ -103,7 +95,6 @@ namespace {
             std::array<bool, kSkeletonBoneCount> projected{};
             for (size_t i = 0; i < kSkeletonBoneCount; ++i) {
                 if (pose.valid[i])
-// Converts a 3D world position to 2D screen coordinates
                     projected[i] = WorldToScreen(pose.bones[i], projectedBones[i],
                         viewMatrix, screenWidth, screenHeight);
             }
@@ -130,7 +121,6 @@ namespace {
 static bool IsValidPlayerPawn(uintptr_t pawn, int localTeam, int localPlayerIndex,
     bool bypassVisibilityForFlash, bool bypassVisibilityForSmoke) {
     if (!IsValidPtr(pawn)) return false;
-// Checks if a player is alive
     if (!IsPawnAlive(pawn)) return false;
 
     int health = mem.Read<int>(pawn + Offsets::m_iHealth);
@@ -252,7 +242,6 @@ void RunTriggerbot() {
     uintptr_t localPawn = 0;
     int localTeam = 0;
     int localPlayerIndex = -1;
-// Identifies which player is the local player
     ResolveActiveLocal(entityList, g_entityStride, localController, localPawn, localTeam, localPlayerIndex);
     if (!IsValidPtr(localPawn)) {
         CancelRevolverHold();

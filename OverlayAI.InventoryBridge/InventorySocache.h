@@ -1,10 +1,5 @@
 #pragma once
 
-// ============================================================
-// InventorySocache.h
-// SOCache function declarations.
-// ============================================================
-
 #include <cstdint>
 
 struct InventorySocacheDiagnostics {
@@ -81,6 +76,9 @@ void PruneInventorySocacheCollection(
 bool ReadInventorySocacheLoadoutSelection(
     int team, int loadoutSlot, uintptr_t itemViewItemIdOffset,
     InventorySocacheLoadoutSelection& selection) noexcept;
+bool ResolveInventorySocacheLoadoutItemView(
+    uint64_t localId, int team, uintptr_t itemViewItemIdOffset,
+    uintptr_t& itemView, int& loadoutSlot) noexcept;
 bool ResolveInventorySocacheGeneratedItemId(
     uint64_t localId, uint64_t& itemId) noexcept;
 bool ResolveInventorySocacheGeneratedLocalId(

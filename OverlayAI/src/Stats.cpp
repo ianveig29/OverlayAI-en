@@ -1,8 +1,3 @@
-// ============================================================
-// Stats.cpp
-// Displays statistics on screen (FPS, player count, diagnostic data).
-// ============================================================
-
 #include "Stats.h"
 
 namespace Stats {

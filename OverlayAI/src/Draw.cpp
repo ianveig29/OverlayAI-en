@@ -1,8 +1,3 @@
-// ============================================================
-// Draw.cpp
-// Basic drawing functions: boxes, lines, text, circles. Used by ESP and other modules to draw on screen.
-// ============================================================
-
 #include "Draw.h"
 #include "../imgui.h"
 

@@ -1,8 +1,3 @@
-// ============================================================
-// GrenadeTrajectory.cpp
-// Draws the trajectory of grenades in the air.
-// ============================================================
-
 #include "GrenadeTrajectory.h"
 
 #include "Config.h"
@@ -56,7 +51,6 @@ void RenderGrenadeTrajectory(int screenWidth, int screenHeight) {
     const bool holdingThrow = leftHeld || rightHeld;
     if (g_Esp.grenadeTrajectoryMode == 1 && !holdingThrow) return;
 
-// Gets the most recent player snapshot
     const FrameSnapshot& frame = GetCurrentFrameSnapshot();
     if (!IsValidPtr(frame.localPawn)) return;
     const uintptr_t entityList = GetEntityListBase();
@@ -159,12 +153,10 @@ void RenderGrenadeTrajectory(int screenWidth, int screenHeight) {
     const ImU32 color = GetTrajectoryColor(weaponInfo.definitionIndex);
     const ImU32 outline = IM_COL32(0, 0, 0, 190);
     Vector3 previousScreen{};
-// Converts a 3D world position to 2D screen coordinates
     bool previousProjected = WorldToScreen(points.front(), previousScreen,
         viewMatrix, screenWidth, screenHeight);
     for (size_t index = 1; index < points.size(); ++index) {
         Vector3 currentScreen{};
-// Converts a 3D world position to 2D screen coordinates
         const bool currentProjected = WorldToScreen(points[index], currentScreen,
             viewMatrix, screenWidth, screenHeight);
         if (previousProjected && currentProjected) {
@@ -178,7 +170,6 @@ void RenderGrenadeTrajectory(int screenWidth, int screenHeight) {
     }
 
     Vector3 endScreen{};
-// Converts a 3D world position to 2D screen coordinates
     if (WorldToScreen(points.back(), endScreen, viewMatrix, screenWidth, screenHeight)) {
         const ImVec2 end(endScreen.x, endScreen.y);
         drawList->AddCircleFilled(end, 6.0f, outline, 20);

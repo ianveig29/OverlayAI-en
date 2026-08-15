@@ -1,10 +1,5 @@
 #pragma once
 
-// ============================================================
-// Localization.h
-// Localization function declarations.
-// ============================================================
-
 enum class UiLanguage {
     Spanish = 0,
     English = 1

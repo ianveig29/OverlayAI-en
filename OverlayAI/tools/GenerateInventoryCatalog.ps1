@@ -9,7 +9,13 @@ New-Item -ItemType Directory -Force -Path $cacheDirectory | Out-Null
 
 function Read-CatalogJson([string]$name) {
     $target = Join-Path $cacheDirectory $name
-    Invoke-WebRequest -UseBasicParsing -Uri "$baseUrl/$name" -OutFile $target
+    try {
+        Invoke-WebRequest -UseBasicParsing -Uri "$baseUrl/$name" -OutFile $target
+    }
+    catch {
+        if (-not (Test-Path -LiteralPath $target)) { throw }
+        Write-Warning "Could not refresh $name; using the cached catalog."
+    }
     return Get-Content -Raw -Encoding UTF8 -LiteralPath $target | ConvertFrom-Json
 }
 
@@ -96,8 +102,9 @@ $skins |
         $minWear = Convert-Float $_.min_float
         $maxWear = Convert-Float $_.max_float
         $image = Convert-ToAscii $_.image
+        $legacyModel = if ($_.legacy_model) { 'true' } else { 'false' }
         $quality = if ($type -eq 'LocalInventoryKnife' -or $type -eq 'LocalInventoryGloves') { 3 } else { 4 }
-        $lines.Add("{ $type, $([int]$_.weapon.weapon_id), $([int]$_.paint_index), $minWear, $maxWear, $statTrak, $souvenir, $quality, $color, `"$name`", `"$group`", `"$rarity`", `"$image`" },")
+        $lines.Add("{ $type, $([int]$_.weapon.weapon_id), $([int]$_.paint_index), $minWear, $maxWear, $statTrak, $souvenir, $quality, $color, `"$name`", `"$group`", `"$rarity`", `"$image`", $legacyModel },")
     }
 
 $collectibles |

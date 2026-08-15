@@ -111,6 +111,9 @@
     <ClCompile Include="src\BombInfo.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="src\BridgeRuntimeLogMonitor.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="src\WeaponIcons.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -160,18 +163,6 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="src\InventoryLog.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="src\Localization.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="src\ModelDiagnostics.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="src\TextFonts.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="src\UiAppearance.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -272,6 +263,9 @@
     <ClInclude Include="src\BombInfo.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="src\BridgeRuntimeLogMonitor.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="src\WeaponIcons.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -329,18 +323,6 @@
     <ClInclude Include="src\PanoramaBridgeContract.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\Localization.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="src\TextFonts.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="src\UiAppearance.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="src\ModelDiagnostics.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="OverlayAI.rc">
@@ -368,6 +350,5 @@
     <None Include="panorama\scripts\overlayai_local_inventory.js" />
     <None Include="panorama\PANORAMA_BRIDGE_CONTRACT.md" />
     <None Include="panorama\PANORAMA_MOUNT_RESEARCH.md" />
-    <None Include="panorama\THIRD_PARTY_INVENTORY_AUDIT.md" />
   </ItemGroup>
 </Project>

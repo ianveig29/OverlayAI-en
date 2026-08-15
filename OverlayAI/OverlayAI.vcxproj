@@ -146,6 +146,7 @@
     <ClCompile Include="src\AntiFlash.cpp" />
     <ClCompile Include="src\AntiSmoke.cpp" />
     <ClCompile Include="src\BombInfo.cpp" />
+    <ClCompile Include="src\BridgeRuntimeLogMonitor.cpp" />
     <ClCompile Include="src\OtherGlow.cpp" />
     <ClCompile Include="src\RadarHack.cpp" />
     <ClCompile Include="src\Crosshair.cpp" />
@@ -192,6 +193,7 @@
     <ClInclude Include="src\AntiFlash.h" />
     <ClInclude Include="src\AntiSmoke.h" />
     <ClInclude Include="src\BombInfo.h" />
+    <ClInclude Include="src\BridgeRuntimeLogMonitor.h" />
     <ClInclude Include="src\OtherGlow.h" />
     <ClInclude Include="src\RadarHack.h" />
     <ClInclude Include="src\Crosshair.h" />
@@ -268,7 +270,9 @@
     <ItemGroup>
       <PanoramaResource Include="$(ProjectDir)panorama\**\*.*" />
     </ItemGroup>
-    <Copy SourceFiles="@(PanoramaResource)" DestinationFiles="@(PanoramaResource->'$(OutDir)panorama\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(PanoramaResource)"
+          DestinationFiles="@(PanoramaResource-&gt;'$(OutDir)panorama\%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
   </Target>
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

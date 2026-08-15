@@ -1,8 +1,3 @@
-// ============================================================
-// Main.cpp
-// Program entry point. Finds the CS2 game window, creates an overlay window on top of the game, and starts the main rendering loop.
-// ============================================================
-
 #include <windows.h>
 #include <iostream>
 #include "imgui.h"
@@ -39,6 +34,7 @@
 #include "SpectatorList.h"
 #include "InventoryChanger.h"
 #include "InventoryIpcController.h"
+#include "BridgeRuntimeLogMonitor.h"
 #include "InventoryPreview.h"
 #include "Localization.h"
 #include "ModelDiagnostics.h"
@@ -111,11 +107,9 @@ int main(int argc, char** argv) {
     ConsoleUi::ReportGameAttached(mem.pid, mem.clientModule);
 
     InitializeOffsetSystem();
-// Loads ESP configuration from a file
     LoadEspConfig("esp_config.ini");
     EnsureConfigStorage();
     const std::string preload = LoadPreloadConfig();
-// Loads a saved configuration preset
     if (!preload.empty()) LoadConfigPreset(preload);
     ConsoleUi::ReportOffsetsLoaded();
 
@@ -128,7 +122,6 @@ int main(int argc, char** argv) {
     if (modelDiagnosticMode) {
         SetModelDiagnosticsEnabled(true);
         for (int sample = 0; sample < 5; ++sample) {
-// Safely updates the global player snapshot
             RefreshGlobalSnapshot();
             UpdateModelDiagnostics();
             Sleep(800);
@@ -163,6 +156,7 @@ int main(int argc, char** argv) {
         const ULONGLONG deadline = GetTickCount64() + 15000;
         while (GetTickCount64() < deadline) {
             inventoryIpc.Pump();
+            PumpBridgeRuntimeLog();
             Sleep(2);
         }
         return 0;
@@ -297,7 +291,6 @@ int main(int argc, char** argv) {
             ? 4
             : (g_MenuOpen ? 12 : 8);
         if (!frameReady || frameNowMs - lastSnapshotUpdateMs >= snapshotIntervalMs) {
-// Safely updates the global player snapshot
             if (RefreshGlobalSnapshot()) {
                 frameReady = true;
                 lastSnapshotUpdateMs = frameNowMs;
@@ -309,6 +302,7 @@ int main(int argc, char** argv) {
         }
         UpdateRadarHack();
         inventoryIpc.Pump();
+        PumpBridgeRuntimeLog();
         UpdateInventoryChanger();
         UpdateFlashState();
         UpdateModelDiagnostics();

@@ -1,10 +1,6 @@
-// ============================================================
-// InventoryBridge.cpp
-// Core of the Inventory Bridge. Manages creation and application of fake inventory items in CS2 game memory.
-// ============================================================
-
 #include <windows.h>
 #include <strsafe.h>
+#include <intrin.h>
 
 #include <cstdint>
 #include <cstdlib>
@@ -46,14 +42,69 @@ namespace {
     constexpr int kMaxPublishedWeaponSkinItems = 256;
     constexpr int kMaxPendingRevealItems = 256;
     constexpr SIZE_T kFrameStageIndex = 36;
+    constexpr int kWeaponSkinEarlyFrameStage = 3;
     constexpr int kAgentFrameStage = 6;
+
+    enum class WeaponMaterialTrialMode {
+        None,
+        CompositeOwner,
+        CompositeSet,
+        UpdateSkin,
+        UpdateSubclass,
+        RebuildSubclassThenSkin,
+        RefreshModules,
+        HistoricalStages,
+        UpdateSkinNoComposite,
+        FallbackIdentity,
+        ClearReapplySkin,
+        ReinitializeAttributes,
+        GraphControllerThenSkin,
+        NetworkedAndromedaSequence,
+        UpdateSkinThenHudRepair,
+    };
+    constexpr WeaponMaterialTrialMode kWeaponMaterialTrialMode =
+        WeaponMaterialTrialMode::None;
+    constexpr bool kForceModernWeaponMeshTrial = false;
+    constexpr bool kCopyWeaponItemViewTrial = true;
+    constexpr bool kUseNetworkedWeaponAttributesTrial = true;
+    constexpr bool kClearStaticWeaponAttributesTrial = true;
+    constexpr bool kBlockRepeatedWeaponSkinAliasTrial = false;
+    constexpr bool kEnableWeaponSkinRuntimeMutation = true;
+    constexpr bool kInstallWeaponMaterialDiagnostics = true;
+    constexpr bool kPrepareWeaponSkinInsideNativeAlias = true;
+
+    enum class WeaponSkinRuntimePhase {
+        EarlyNetUpdate,
+        RenderEnd,
+    };
+
+    float EncodeIntegerAttributeValue(uint32_t value) noexcept {
+        float encoded = 0.0f;
+        static_assert(sizeof(encoded) == sizeof(value));
+        std::memcpy(&encoded, &value, sizeof(encoded));
+        return encoded;
+    }
 
     HANDLE g_stopEvent = nullptr;
     using FrameStageFn = void(__fastcall*)(void*, int);
     using SetModelFn = void* (__fastcall*)(void*, const char*);
     using SetBodyGroupFn = void(__fastcall*)(void*, uint64_t, uint64_t);
     using SetMeshGroupMaskFn = void(__fastcall*)(void*, uint64_t);
+    using SetItemViewAttributeByNameFn = void(__fastcall*)(
+        void*, const char*, float);
+    using AddOrSetAttributeByNameFn = void(__fastcall*)(
+        void*, const char*, float);
+    using UpdateCompositeMaterialFn = void(__fastcall*)(void*, bool);
+    using UpdateCompositeMaterialSetFn = void(__fastcall*)(void*, bool);
+    using UpdateWeaponSkinFn = void(__fastcall*)(void*, bool);
+    using PrepareWeaponSkinFn = void(__fastcall*)(void*, bool);
+    using BuildWeaponMaterialOverridesFn = bool(__fastcall*)(
+        void*, void*, void*, bool);
+    using ItemViewGetTextureSeedFn = int(__fastcall*)(void*);
+    using SceneNodePostDataUpdateFn = void(__fastcall*)(
+        void*, int64_t, int64_t);
     using UpdateSubclassFn = void(__fastcall*)(void*);
+    using UpdateWeaponGraphControllerFn = void(__fastcall*)(void*, void*);
     using RefreshWeaponModulesFn = bool(__fastcall*)(void*, void*);
     using ClearWeaponCustomMaterialsFn = void(__fastcall*)(void*, bool);
     using FindHudElementFn = void* (__fastcall*)(const char*);
@@ -70,7 +121,24 @@ namespace {
     SetModelFn g_setModel = nullptr;
     SetBodyGroupFn g_setBodyGroup = nullptr;
     SetMeshGroupMaskFn g_setMeshGroupMask = nullptr;
+    SetItemViewAttributeByNameFn g_setItemViewAttributeByName = nullptr;
+    AddOrSetAttributeByNameFn g_addOrSetAttributeByName = nullptr;
+    UpdateCompositeMaterialFn g_updateCompositeMaterial = nullptr;
+    UpdateCompositeMaterialSetFn g_updateCompositeMaterialSet = nullptr;
+    UpdateWeaponSkinFn g_updateWeaponSkin = nullptr;
+    UpdateCompositeMaterialFn g_observedCompositeMaterial = nullptr;
+    UpdateCompositeMaterialSetFn g_observedCompositeMaterialSet = nullptr;
+    UpdateWeaponSkinFn g_observedUpdateWeaponSkin = nullptr;
+    UpdateWeaponSkinFn g_observedUpdateWeaponSkinAlias = nullptr;
+    PrepareWeaponSkinFn g_observedPrepareWeaponSkin = nullptr;
+    BuildWeaponMaterialOverridesFn g_observedBuildWeaponMaterialOverrides =
+        nullptr;
+    ItemViewGetTextureSeedFn g_originalItemViewGetTextureSeed = nullptr;
+    void** g_itemViewGetTextureSeedSlot = nullptr;
+    std::atomic<uint32_t> g_weaponSkinLifecycleGeneration{ 0 };
+    uintptr_t g_compositeMaterialOwnerOffset = 0;
     UpdateSubclassFn g_updateSubclass = nullptr;
+    UpdateWeaponGraphControllerFn g_updateWeaponGraphController = nullptr;
     RefreshWeaponModulesFn g_refreshWeaponModules = nullptr;
     ClearWeaponCustomMaterialsFn g_clearWeaponCustomMaterials = nullptr;
     FindHudElementFn g_findHudElement = nullptr;
@@ -119,6 +187,7 @@ namespace {
     void** g_frameStageSlot = nullptr;
     volatile LONG g_frameStageSixCalls = 0;
     bool g_weaponSkinSocacheAllowed = true;
+    ULONGLONG g_nextWeaponObserverLogAt = 0;
 
 
 
@@ -170,6 +239,8 @@ namespace {
             int statTrakCount = 0;
             uint8_t quality = 4;
             uint8_t rarity = 0;
+            int equippedTeam = 0;
+            bool legacyModel = false;
         };
 
         struct GloveCollectionItem {
@@ -377,6 +448,88 @@ namespace {
     };
 
     AppliedKnifeState g_appliedKnife{};
+    struct AppliedWeaponSkinState {
+        uintptr_t pawn = 0;
+        uintptr_t entityStride = 0;
+        uintptr_t weapon = 0;
+        uint32_t weaponHandle = 0;
+        uint64_t localId = 0;
+        int definitionIndex = 0;
+        int paintKit = 0;
+        int seed = 0;
+        float wear = 0.15f;
+        int statTrak = -1;
+        uint8_t quality = 4;
+        uint64_t generatedItemId = 0;
+        uintptr_t itemView = 0;
+        uintptr_t itemIdOffset = 0;
+        uintptr_t itemIdHighOffset = 0;
+        uintptr_t itemIdLowOffset = 0;
+        uintptr_t initializedOffset = 0;
+        uintptr_t fallbackPaintKitOffset = 0;
+        uintptr_t fallbackSeedOffset = 0;
+        uintptr_t fallbackWearOffset = 0;
+        uintptr_t fallbackStatTrakOffset = 0;
+        uint16_t originalDefinition = 0;
+        int32_t originalQuality = 0;
+        uint64_t originalItemId = 0;
+        uint32_t originalItemIdHigh = 0;
+        uint32_t originalItemIdLow = 0;
+        uint32_t originalAccountId = 0;
+        uint8_t originalInitialized = 0;
+        int originalPaintKit = 0;
+        int originalSeed = 0;
+        float originalWear = 0.0f;
+        int originalStatTrak = -1;
+        bool originalRestoreCustomMaterial = false;
+        bool originalDisallowSoc = false;
+        ULONGLONG nextUpdateAt = 0;
+        ULONGLONG hudRefreshAt = 0;
+        int hudRefreshAttempts = 0;
+        bool hudRefreshed = false;
+        bool sceneUpdatePending = false;
+        bool materialRefreshPending = false;
+        ULONGLONG materialRefreshAt = 0;
+        float spawnTimeIndex = 0.0f;
+        uint32_t lifecycleGeneration = 0;
+        ULONGLONG materialTrialAt = 0;
+        int materialTrialStage = 0;
+        bool materialTrialDone = false;
+        bool applied = false;
+    };
+    AppliedWeaponSkinState g_appliedWeaponSkin{};
+    struct WeaponMaterialInlineHook {
+        void* target = nullptr;
+        void* trampoline = nullptr;
+        SIZE_T patchLength = 0;
+        unsigned char original[20]{};
+    };
+    WeaponMaterialInlineHook g_compositeMaterialHook{};
+    WeaponMaterialInlineHook g_compositeMaterialSetHook{};
+    WeaponMaterialInlineHook g_updateWeaponSkinHook{};
+    WeaponMaterialInlineHook g_updateWeaponSkinAliasHook{};
+    WeaponMaterialInlineHook g_prepareWeaponSkinHook{};
+    WeaponMaterialInlineHook g_buildWeaponMaterialOverridesHook{};
+    std::atomic<unsigned> g_weaponMaterialHookLogs{ 0 };
+    std::atomic<unsigned> g_weaponStatTrakEventLogs{ 0 };
+    std::atomic<bool> g_weaponSkinAliasBlockedLogged{ false };
+    std::atomic<bool> g_weaponSkinMidpointLogged{ false };
+    std::atomic<bool> g_weaponMaterialOverridesLogged{ false };
+    constexpr int kMaxRetainedWeaponSkins = 32;
+    AppliedWeaponSkinState g_retainedWeaponSkins[
+        kMaxRetainedWeaponSkins]{};
+    struct WeaponTextureSeedOverrideEntry {
+        uintptr_t itemView = 0;
+        uintptr_t itemIdOffset = 0;
+        uint64_t generatedItemId = 0;
+        int effectiveSeed = 0;
+        bool validateIdentity = false;
+    };
+    constexpr int kMaxWeaponTextureSeedOverrides =
+        kMaxRetainedWeaponSkins + 1;
+    SRWLOCK g_weaponTextureSeedOverrideLock = SRWLOCK_INIT;
+    WeaponTextureSeedOverrideEntry g_weaponTextureSeedOverrides[
+        kMaxWeaponTextureSeedOverrides]{};
     struct AppliedGloveState {
         uintptr_t pawn = 0;
         uint64_t localId = 0;
@@ -496,6 +649,7 @@ namespace {
     constexpr ULONGLONG kSocacheRetryMs = 1000;
     constexpr ULONGLONG kRetryLogIntervalMs = 10000;
     volatile LONG g_agentModelApplied = 0;
+    volatile LONG g_weaponSkinApplied = 0;
     volatile LONG g_knifeModelApplied = 0;
     volatile LONG g_gloveModelApplied = 0;
     volatile LONG g_nativeGloveLoadoutApplied = 0;
@@ -509,6 +663,7 @@ namespace {
     void RestoreMusicKitRuntimeControl();
     void RunPendingRevealAcknowledgementControl();
     void RunNativeInventoryLoadoutControl();
+    void RunWeaponSkinRuntimeControl(WeaponSkinRuntimePhase phase);
     void RunKnifeModelControl();
     void RunGloveModelControl();
     void LogKnifeDryRun(const char* json);
@@ -875,6 +1030,15 @@ namespace {
                 if (field && field < itemEnd &&
                     ReadJsonUnsigned(field, "rarity_rank", value))
                     item.rarity = static_cast<uint8_t>(value & 0xF);
+                value = 0;
+                field = strstr(itemStart, "\"equipped_team\":");
+                if (field && field < itemEnd &&
+                    ReadJsonUnsigned(field, "equipped_team", value))
+                    item.equippedTeam = static_cast<int>(value & 0x3);
+                field = strstr(itemStart, "\"legacy_model\":");
+                if (field && field < itemEnd)
+                    (void)ReadJsonBool(field, "legacy_model",
+                        item.legacyModel);
 
                 const uint64_t parts[] = {
                     item.localId,
@@ -884,7 +1048,9 @@ namespace {
                     static_cast<uint64_t>(item.statTrak),
                     static_cast<uint64_t>(item.statTrakCount),
                     static_cast<uint64_t>(item.quality),
-                    static_cast<uint64_t>(item.rarity)
+                    static_cast<uint64_t>(item.rarity),
+                    static_cast<uint64_t>(item.equippedTeam),
+                    static_cast<uint64_t>(item.legacyModel)
                 };
                 for (const uint64_t part : parts) {
                     selection.weaponSkinCollectionHash ^= part;
@@ -1448,6 +1614,98 @@ namespace {
         return false;
     }
 
+    int GetWeaponDefinitionProtocolTeam(int definitionIndex) {
+        switch (definitionIndex) {
+        case 4:
+        case 7:
+        case 11:
+        case 13:
+        case 17:
+        case 29:
+        case 30:
+        case 39:
+            return 1;
+        case 3:
+        case 8:
+        case 10:
+        case 16:
+        case 27:
+        case 32:
+        case 34:
+        case 38:
+        case 60:
+        case 61:
+            return 2;
+        default:
+            return 3;
+        }
+    }
+
+    const char* GetWeaponKillEventName(int definitionIndex) {
+        switch (definitionIndex) {
+        case 1: return "deagle";
+        case 2: return "elite";
+        case 3: return "fiveseven";
+        case 4: return "glock";
+        case 7: return "ak47";
+        case 8: return "aug";
+        case 9: return "awp";
+        case 10: return "famas";
+        case 11: return "g3sg1";
+        case 13: return "galilar";
+        case 14: return "m249";
+        case 16: return "m4a1";
+        case 17: return "mac10";
+        case 19: return "p90";
+        case 23: return "mp5sd";
+        case 24: return "ump45";
+        case 25: return "xm1014";
+        case 26: return "bizon";
+        case 27: return "mag7";
+        case 28: return "negev";
+        case 29: return "sawedoff";
+        case 30: return "tec9";
+        case 31: return "taser";
+        case 32: return "hkp2000";
+        case 33: return "mp7";
+        case 34: return "mp9";
+        case 35: return "nova";
+        case 36: return "p250";
+        case 38: return "scar20";
+        case 39: return "sg556";
+        case 40: return "ssg08";
+        case 60: return "m4a1_silencer";
+        case 61: return "usp_silencer";
+        case 63: return "cz75a";
+        case 64: return "revolver";
+        default: return nullptr;
+        }
+    }
+
+    const InventorySnapshotSelection::WeaponSkinCollectionItem*
+    FindWeaponSkinCollectionItem(
+        const InventorySnapshotSelection& selection, uint64_t localId) {
+        if (!localId) return nullptr;
+        for (int index = 0; index < selection.weaponSkinItemCount; ++index) {
+            if (selection.weaponSkinItems[index].localId == localId)
+                return &selection.weaponSkinItems[index];
+        }
+        return nullptr;
+    }
+
+    bool UsesNativeTeamLoadoutObserver(
+        const InventorySnapshotSelection& selection, uint64_t localId) {
+        for (int index = 0; index < selection.weaponSkinItemCount; ++index) {
+            if (selection.weaponSkinItems[index].localId == localId)
+                return true;
+        }
+        for (int index = 0; index < selection.knifeItemCount; ++index) {
+            if (selection.knifeItems[index].localId == localId)
+                return true;
+        }
+        return false;
+    }
+
     bool ProbeMusicKitLoadout(
         const InventorySnapshotSelection& selection, uint64_t targetLocalId,
         uint64_t targetItemId, MusicKitLoadoutProbe& probe) {
@@ -1902,6 +2160,11 @@ namespace {
     void __fastcall FrameStageDiagnosticHook(void* self, int stage) {
         FrameStageFn original = g_originalFrameStage;
         if (original) original(self, stage);
+        if (stage == kWeaponSkinEarlyFrameStage &&
+            kEnableWeaponSkinRuntimeMutation) {
+            RunWeaponSkinRuntimeControl(
+                WeaponSkinRuntimePhase::EarlyNetUpdate);
+        }
         if (stage == kAgentFrameStage) {
             InterlockedIncrement(&g_frameStageSixCalls);
             RunAgentModelControl();
@@ -1913,6 +2176,9 @@ namespace {
             RunMiscCollectionControl();
             RunPendingRevealAcknowledgementControl();
             RunNativeInventoryLoadoutControl();
+            if (kEnableWeaponSkinRuntimeMutation)
+                RunWeaponSkinRuntimeControl(
+                    WeaponSkinRuntimePhase::RenderEnd);
             RunKnifeModelControl();
             RunGloveModelControl();
             RunPanoramaMountFrame();
@@ -1958,6 +2224,650 @@ namespace {
             }
         }
         return nullptr;
+    }
+
+    bool InstallWeaponMaterialInlineHook(void* target, void* replacement,
+        SIZE_T patchLength, WeaponMaterialInlineHook& hook,
+        void** original) {
+        constexpr SIZE_T kPatchJumpSize = 12;
+        constexpr SIZE_T kTrampolineJumpSize = 14;
+        if (!target || !replacement || !original ||
+            patchLength < kPatchJumpSize ||
+            patchLength > sizeof(hook.original))
+            return false;
+
+        void* trampoline = VirtualAlloc(nullptr,
+            patchLength + kTrampolineJumpSize,
+            MEM_RESERVE | MEM_COMMIT, PAGE_EXECUTE_READWRITE);
+        if (!trampoline) return false;
+        CopyMemory(hook.original, target, patchLength);
+        CopyMemory(trampoline, hook.original, patchLength);
+
+        // RIP-indirect absolute jump preserves RAX and every other register
+        // established by the copied prologue.
+        unsigned char jumpBack[kTrampolineJumpSize] = {
+            0xFF, 0x25, 0, 0, 0, 0
+        };
+        const uintptr_t resume = reinterpret_cast<uintptr_t>(target) +
+            patchLength;
+        CopyMemory(jumpBack + 6, &resume, sizeof(resume));
+        CopyMemory(static_cast<unsigned char*>(trampoline) + patchLength,
+            jumpBack, sizeof(jumpBack));
+
+        unsigned char patch[20]{};
+        patch[0] = 0x48;
+        patch[1] = 0xB8;
+        const uintptr_t destination =
+            reinterpret_cast<uintptr_t>(replacement);
+        CopyMemory(patch + 2, &destination, sizeof(destination));
+        patch[10] = 0xFF;
+        patch[11] = 0xE0;
+        for (SIZE_T index = kPatchJumpSize; index < patchLength; ++index)
+            patch[index] = 0x90;
+
+        DWORD oldProtection = 0;
+        if (!VirtualProtect(target, patchLength, PAGE_EXECUTE_READWRITE,
+                &oldProtection)) {
+            VirtualFree(trampoline, 0, MEM_RELEASE);
+            return false;
+        }
+        CopyMemory(target, patch, patchLength);
+        FlushInstructionCache(GetCurrentProcess(), target, patchLength);
+        DWORD ignored = 0;
+        (void)VirtualProtect(target, patchLength, oldProtection, &ignored);
+
+        hook.target = target;
+        hook.trampoline = trampoline;
+        hook.patchLength = patchLength;
+        *original = trampoline;
+        return true;
+    }
+
+    void RemoveWeaponMaterialInlineHook(WeaponMaterialInlineHook& hook) {
+        if (!hook.target || !hook.patchLength) return;
+        DWORD oldProtection = 0;
+        if (VirtualProtect(hook.target, hook.patchLength,
+                PAGE_EXECUTE_READWRITE, &oldProtection)) {
+            CopyMemory(hook.target, hook.original, hook.patchLength);
+            FlushInstructionCache(GetCurrentProcess(), hook.target,
+                hook.patchLength);
+            DWORD ignored = 0;
+            (void)VirtualProtect(hook.target, hook.patchLength,
+                oldProtection, &ignored);
+        }
+        Sleep(20);
+        if (hook.trampoline)
+            VirtualFree(hook.trampoline, 0, MEM_RELEASE);
+        hook = {};
+    }
+
+    void LogWeaponMaterialHook(const char* name, uintptr_t weapon,
+        bool argument, int beforePrimary, int beforeSecondary,
+        int afterPrimary, int afterSecondary, uintptr_t caller) {
+        if (weapon != g_appliedWeaponSkin.weapon ||
+            g_weaponMaterialHookLogs.fetch_add(1) >= 8)
+            return;
+        const uintptr_t client = reinterpret_cast<uintptr_t>(
+            GetModuleHandleW(L"client.dll"));
+        char message[320]{};
+        StringCchPrintfA(message, _countof(message),
+            "Weapon material hook: fn=%s weapon=0x%llX arg=%s "
+            "counts=%d/%d->%d/%d caller=0x%llX stage6=%ld.",
+            name, static_cast<unsigned long long>(weapon),
+            argument ? "true" : "false", beforePrimary, beforeSecondary,
+            afterPrimary, afterSecondary,
+            static_cast<unsigned long long>(
+                client && caller >= client ? caller - client : caller),
+            InterlockedCompareExchange(&g_frameStageSixCalls, 0, 0));
+        AppendLog(message);
+    }
+
+    bool PrepareAppliedWeaponSkinForMaterial(uintptr_t weapon) {
+        if (!kPrepareWeaponSkinInsideNativeAlias ||
+            weapon != g_appliedWeaponSkin.weapon ||
+            !g_appliedWeaponSkin.applied ||
+            !g_appliedWeaponSkin.itemView || !g_addOrSetAttributeByName)
+            return false;
+
+        constexpr uintptr_t kStaticAttributesCountOffset = 0x210;
+        constexpr uintptr_t kNetworkedAttributesOffset = 0x280;
+        constexpr uintptr_t kNetworkedAttributesCountOffset = 0x288;
+        constexpr uintptr_t kRestoreCustomMaterialOffset = 0x1B8;
+        constexpr uintptr_t kDisallowSocOffset = 0x1E9;
+        constexpr uint32_t kFallbackItemIdPart = 0xFFFFFFFFu;
+        const int emptyCount = 0;
+        const uint8_t initialized = 1;
+        const bool restoreCustomMaterial = true;
+        const bool allowSoc = false;
+        const bool fieldsWritten =
+            SafeWrite(g_appliedWeaponSkin.itemView +
+                g_appliedWeaponSkin.itemIdHighOffset,
+                kFallbackItemIdPart) &&
+            SafeWrite(g_appliedWeaponSkin.itemView +
+                g_appliedWeaponSkin.itemIdLowOffset,
+                kFallbackItemIdPart) &&
+            SafeWrite(g_appliedWeaponSkin.itemView +
+                g_appliedWeaponSkin.initializedOffset, initialized) &&
+            SafeWrite(g_appliedWeaponSkin.itemView +
+                kRestoreCustomMaterialOffset, restoreCustomMaterial) &&
+            SafeWrite(g_appliedWeaponSkin.itemView +
+                kDisallowSocOffset, allowSoc) &&
+            SafeWrite(weapon + g_appliedWeaponSkin.fallbackPaintKitOffset,
+                g_appliedWeaponSkin.paintKit) &&
+            SafeWrite(weapon + g_appliedWeaponSkin.fallbackSeedOffset,
+                g_appliedWeaponSkin.seed) &&
+            SafeWrite(weapon + g_appliedWeaponSkin.fallbackWearOffset,
+                g_appliedWeaponSkin.wear) &&
+            SafeWrite(weapon + g_appliedWeaponSkin.fallbackStatTrakOffset,
+                g_appliedWeaponSkin.statTrak) &&
+            SafeWrite(g_appliedWeaponSkin.itemView +
+                kStaticAttributesCountOffset, emptyCount) &&
+            SafeWrite(g_appliedWeaponSkin.itemView +
+                kNetworkedAttributesCountOffset, emptyCount);
+        if (!fieldsWritten) return false;
+
+        __try {
+            void* attributes = reinterpret_cast<void*>(
+                g_appliedWeaponSkin.itemView +
+                kNetworkedAttributesOffset);
+            g_addOrSetAttributeByName(attributes,
+                "set item texture prefab",
+                static_cast<float>(g_appliedWeaponSkin.paintKit));
+            g_addOrSetAttributeByName(attributes,
+                "set item texture seed",
+                static_cast<float>(g_appliedWeaponSkin.seed));
+            g_addOrSetAttributeByName(attributes,
+                "set item texture wear", g_appliedWeaponSkin.wear);
+            if (g_appliedWeaponSkin.statTrak >= 0) {
+                g_addOrSetAttributeByName(attributes,
+                    "kill eater",
+                    EncodeIntegerAttributeValue(static_cast<uint32_t>(
+                        g_appliedWeaponSkin.statTrak)));
+                g_addOrSetAttributeByName(attributes,
+                    "kill eater score type",
+                    EncodeIntegerAttributeValue(0));
+            }
+            return true;
+        }
+        __except (EXCEPTION_EXECUTE_HANDLER) {
+            AppendLog("Weapon skin preparation: attribute setter faulted.");
+            return false;
+        }
+    }
+
+    void __fastcall PrepareWeaponSkinDiagnosticHook(void* weaponObject,
+        bool rebuild) {
+        const uintptr_t weapon = reinterpret_cast<uintptr_t>(weaponObject);
+        int beforeStatic = -1;
+        int beforeNetworked = -1;
+        int nativeStatic = -1;
+        int nativeNetworked = -1;
+        int preparedStatic = -1;
+        int preparedNetworked = -1;
+        const uintptr_t itemView = weapon == g_appliedWeaponSkin.weapon
+            ? g_appliedWeaponSkin.itemView : 0;
+        if (itemView) {
+            (void)SafeRead(itemView + 0x210, beforeStatic);
+            (void)SafeRead(itemView + 0x288, beforeNetworked);
+        }
+        if (g_observedPrepareWeaponSkin)
+            g_observedPrepareWeaponSkin(weaponObject, rebuild);
+        if (itemView) {
+            (void)SafeRead(itemView + 0x210, nativeStatic);
+            (void)SafeRead(itemView + 0x288, nativeNetworked);
+        }
+        const bool prepared = PrepareAppliedWeaponSkinForMaterial(weapon);
+        if (itemView) {
+            (void)SafeRead(itemView + 0x210, preparedStatic);
+            (void)SafeRead(itemView + 0x288, preparedNetworked);
+        }
+        if (itemView && !g_weaponSkinMidpointLogged.exchange(true)) {
+            char message[320]{};
+            StringCchPrintfA(message, _countof(message),
+                "Weapon skin midpoint: weapon=0x%llX rebuild=%s "
+                "attrs=%d/%d->%d/%d->%d/%d prepared=%s.",
+                static_cast<unsigned long long>(weapon),
+                rebuild ? "true" : "false",
+                beforeStatic, beforeNetworked,
+                nativeStatic, nativeNetworked,
+                preparedStatic, preparedNetworked,
+                prepared ? "yes" : "no");
+            AppendLog(message);
+        }
+    }
+
+    void __fastcall CompositeMaterialDiagnosticHook(void* owner,
+        bool rebuild) {
+        const uintptr_t weapon = reinterpret_cast<uintptr_t>(owner) -
+            g_compositeMaterialOwnerOffset;
+        int beforePrimary = -1;
+        int beforeSecondary = -1;
+        int afterPrimary = -1;
+        int afterSecondary = -1;
+        (void)SafeRead(weapon + 0xAA8, beforePrimary);
+        (void)SafeRead(weapon + 0xAC0, beforeSecondary);
+        if (g_observedCompositeMaterial)
+            g_observedCompositeMaterial(owner, rebuild);
+        (void)SafeRead(weapon + 0xAA8, afterPrimary);
+        (void)SafeRead(weapon + 0xAC0, afterSecondary);
+        LogWeaponMaterialHook("owner", weapon, rebuild,
+            beforePrimary, beforeSecondary, afterPrimary, afterSecondary,
+            reinterpret_cast<uintptr_t>(_ReturnAddress()));
+    }
+
+    void __fastcall CompositeMaterialSetDiagnosticHook(void* weaponObject,
+        bool rebuild) {
+        const uintptr_t weapon = reinterpret_cast<uintptr_t>(weaponObject);
+        int beforePrimary = -1;
+        int beforeSecondary = -1;
+        int afterPrimary = -1;
+        int afterSecondary = -1;
+        (void)SafeRead(weapon + 0xAA8, beforePrimary);
+        (void)SafeRead(weapon + 0xAC0, beforeSecondary);
+        if (g_observedCompositeMaterialSet)
+            g_observedCompositeMaterialSet(weaponObject, rebuild);
+        (void)SafeRead(weapon + 0xAA8, afterPrimary);
+        (void)SafeRead(weapon + 0xAC0, afterSecondary);
+        LogWeaponMaterialHook("set", weapon, rebuild,
+            beforePrimary, beforeSecondary, afterPrimary, afterSecondary,
+            reinterpret_cast<uintptr_t>(_ReturnAddress()));
+    }
+
+    bool RegisterWeaponTextureSeedOverride(
+        uintptr_t itemView, uintptr_t itemIdOffset, uint64_t generatedItemId,
+        int paintKit, int seed, bool validateIdentity) {
+        if (!itemView || paintKit <= 0) return false;
+
+        AcquireSRWLockExclusive(&g_weaponTextureSeedOverrideLock);
+        WeaponTextureSeedOverrideEntry* destination = nullptr;
+        for (auto& entry : g_weaponTextureSeedOverrides) {
+            if (entry.itemView == itemView) {
+                destination = &entry;
+                break;
+            }
+            if (!destination && !entry.itemView)
+                destination = &entry;
+        }
+        if (!destination) {
+            for (auto& entry : g_weaponTextureSeedOverrides) {
+                uint64_t currentItemId = 0;
+                if (entry.validateIdentity && entry.itemIdOffset &&
+                    (!SafeRead(entry.itemView + entry.itemIdOffset,
+                        currentItemId) ||
+                    currentItemId != entry.generatedItemId)) {
+                    destination = &entry;
+                    break;
+                }
+            }
+        }
+        if (destination) {
+            *destination = { itemView, itemIdOffset, generatedItemId,
+                seed > 0 ? seed : paintKit, validateIdentity };
+        }
+        ReleaseSRWLockExclusive(&g_weaponTextureSeedOverrideLock);
+        if (!destination)
+            AppendLog("Weapon texture seed registry: capacity exhausted.");
+        return destination != nullptr;
+    }
+
+    void UnregisterWeaponTextureSeedOverride(uintptr_t itemView) {
+        if (!itemView) return;
+        AcquireSRWLockExclusive(&g_weaponTextureSeedOverrideLock);
+        for (auto& entry : g_weaponTextureSeedOverrides) {
+            if (entry.itemView == itemView) {
+                entry = {};
+                break;
+            }
+        }
+        ReleaseSRWLockExclusive(&g_weaponTextureSeedOverrideLock);
+    }
+
+    void ClearWeaponTextureSeedOverrides() {
+        AcquireSRWLockExclusive(&g_weaponTextureSeedOverrideLock);
+        for (auto& entry : g_weaponTextureSeedOverrides) entry = {};
+        ReleaseSRWLockExclusive(&g_weaponTextureSeedOverrideLock);
+    }
+
+    int __fastcall ItemViewGetTextureSeedOverrideHook(void* itemViewObject) {
+        const uintptr_t itemView =
+            reinterpret_cast<uintptr_t>(itemViewObject);
+        AcquireSRWLockShared(&g_weaponTextureSeedOverrideLock);
+        for (const auto& entry : g_weaponTextureSeedOverrides) {
+            if (entry.itemView != itemView) continue;
+            bool identityMatches = true;
+            if (entry.validateIdentity) {
+                uint64_t currentItemId = 0;
+                identityMatches = entry.itemIdOffset &&
+                    entry.generatedItemId &&
+                    SafeRead(itemView + entry.itemIdOffset, currentItemId) &&
+                    currentItemId == entry.generatedItemId;
+            }
+            if (identityMatches) {
+                const int effectiveSeed = entry.effectiveSeed;
+                ReleaseSRWLockShared(&g_weaponTextureSeedOverrideLock);
+                return effectiveSeed;
+            }
+            break;
+        }
+        ReleaseSRWLockShared(&g_weaponTextureSeedOverrideLock);
+        return g_originalItemViewGetTextureSeed
+            ? g_originalItemViewGetTextureSeed(itemViewObject) : 0;
+    }
+
+    bool InstallItemViewGetTextureSeedOverride(void* itemViewObject) {
+        if (!itemViewObject) return false;
+        if (g_itemViewGetTextureSeedSlot &&
+            g_originalItemViewGetTextureSeed)
+            return true;
+        void** vtable = nullptr;
+        if (!SafeRead(reinterpret_cast<uintptr_t>(itemViewObject), vtable) ||
+            !vtable)
+            return false;
+        void** slot = &vtable[4];
+        void* original = nullptr;
+        if (!SetVtableEntry(slot,
+                reinterpret_cast<void*>(
+                    &ItemViewGetTextureSeedOverrideHook),
+                &original))
+            return false;
+        g_itemViewGetTextureSeedSlot = slot;
+        g_originalItemViewGetTextureSeed =
+            reinterpret_cast<ItemViewGetTextureSeedFn>(original);
+        const uintptr_t client = reinterpret_cast<uintptr_t>(
+            GetModuleHandleW(L"client.dll"));
+        char message[192]{};
+        StringCchPrintfA(message, _countof(message),
+            "Weapon texture seed getter: override installed slot=4 "
+            "original_rva=0x%llX requested=%d effective=%d.",
+            static_cast<unsigned long long>(client &&
+                reinterpret_cast<uintptr_t>(original) >= client
+                ? reinterpret_cast<uintptr_t>(original) - client
+                : reinterpret_cast<uintptr_t>(original)),
+            g_appliedWeaponSkin.seed,
+            g_appliedWeaponSkin.seed > 0
+                ? g_appliedWeaponSkin.seed
+                : g_appliedWeaponSkin.paintKit);
+        AppendLog(message);
+        return true;
+    }
+
+    void RemoveItemViewGetTextureSeedOverride() {
+        if (g_itemViewGetTextureSeedSlot &&
+            g_originalItemViewGetTextureSeed) {
+            (void)SetVtableEntry(g_itemViewGetTextureSeedSlot,
+                reinterpret_cast<void*>(g_originalItemViewGetTextureSeed),
+                nullptr);
+        }
+        g_itemViewGetTextureSeedSlot = nullptr;
+        g_originalItemViewGetTextureSeed = nullptr;
+        ClearWeaponTextureSeedOverrides();
+    }
+
+    bool __fastcall BuildWeaponMaterialOverridesDiagnosticHook(
+        void* itemViewObject, void* weaponObject, void* outputObject,
+        bool includeWearOffsets) {
+        const uintptr_t itemView = reinterpret_cast<uintptr_t>(itemViewObject);
+        const uintptr_t weapon = reinterpret_cast<uintptr_t>(weaponObject);
+        int beforeCount = -1;
+        int afterCount = -1;
+        int textureSeed = -1;
+        float wear = -1.0f;
+        int materialIds[6]{};
+        int materialVariants[6]{};
+        uintptr_t materialGetter = 0;
+        (void)SafeRead(reinterpret_cast<uintptr_t>(outputObject), beforeCount);
+
+        if (weapon == g_appliedWeaponSkin.weapon &&
+            itemView == g_appliedWeaponSkin.itemView) {
+            (void)InstallItemViewGetTextureSeedOverride(itemViewObject);
+            __try {
+                void** vtable = *reinterpret_cast<void***>(itemViewObject);
+                using GetTextureSeedFn = int(__fastcall*)(void*);
+                using GetWearFn = float(__fastcall*)(void*, float);
+                textureSeed = reinterpret_cast<GetTextureSeedFn>(vtable[4])(
+                    itemViewObject);
+                wear = reinterpret_cast<GetWearFn>(vtable[5])(
+                    itemViewObject, 0.0f);
+                using GetMaterialIdFn = int(__fastcall*)(
+                    void*, int, int, int);
+                materialGetter = reinterpret_cast<uintptr_t>(vtable[7]);
+                const auto getMaterialId =
+                    reinterpret_cast<GetMaterialIdFn>(vtable[7]);
+                for (int index = 0; index < 6; ++index) {
+                    materialIds[index] = getMaterialId(
+                        itemViewObject, index, 0, 0);
+                    materialVariants[index] = getMaterialId(
+                        itemViewObject, index, 6, -1);
+                }
+            }
+            __except (EXCEPTION_EXECUTE_HANDLER) {
+                textureSeed = -2;
+                wear = -2.0f;
+            }
+        }
+
+        const bool result = g_observedBuildWeaponMaterialOverrides
+            ? g_observedBuildWeaponMaterialOverrides(itemViewObject,
+                weaponObject, outputObject, includeWearOffsets)
+            : false;
+        (void)SafeRead(reinterpret_cast<uintptr_t>(outputObject), afterCount);
+
+        if (weapon == g_appliedWeaponSkin.weapon &&
+            itemView == g_appliedWeaponSkin.itemView &&
+            !g_weaponMaterialOverridesLogged.exchange(true)) {
+            uintptr_t entries = 0;
+            uintptr_t firstName = 0;
+            uintptr_t secondName = 0;
+            char first[96]{};
+            char second[96]{};
+            (void)SafeRead(reinterpret_cast<uintptr_t>(outputObject) + 8,
+                entries);
+            if (entries && afterCount > 0) {
+                (void)SafeRead(entries, firstName);
+                (void)SafeReadString(firstName, first, _countof(first));
+            }
+            if (entries && afterCount > 1) {
+                (void)SafeRead(entries + 0x28, secondName);
+                (void)SafeReadString(secondName, second, _countof(second));
+            }
+            const uintptr_t client = reinterpret_cast<uintptr_t>(
+                GetModuleHandleW(L"client.dll"));
+            char message[768]{};
+            StringCchPrintfA(message, _countof(message),
+                "Weapon material builder: weapon=0x%llX view=0x%llX "
+                "texture_seed=%d wear=%.6f offsets=%s result=%s "
+                "count=%d->%d "
+                "getter_rva=0x%llX ids=%d,%d,%d,%d,%d,%d "
+                "variants=%d,%d,%d,%d,%d,%d entries=0x%llX "
+                "first='%s' second='%s'.",
+                static_cast<unsigned long long>(weapon),
+                static_cast<unsigned long long>(itemView), textureSeed, wear,
+                includeWearOffsets ? "yes" : "no",
+                result ? "yes" : "no", beforeCount, afterCount,
+                static_cast<unsigned long long>(client &&
+                    materialGetter >= client
+                    ? materialGetter - client : materialGetter),
+                materialIds[0], materialIds[1], materialIds[2],
+                materialIds[3], materialIds[4], materialIds[5],
+                materialVariants[0], materialVariants[1],
+                materialVariants[2], materialVariants[3],
+                materialVariants[4], materialVariants[5],
+                static_cast<unsigned long long>(entries), first, second);
+            AppendLog(message);
+        }
+        return result;
+    }
+
+    void __fastcall UpdateWeaponSkinDiagnosticHook(void* weaponObject,
+        bool rebuild) {
+        const uintptr_t weapon = reinterpret_cast<uintptr_t>(weaponObject);
+        int beforePrimary = -1;
+        int beforeSecondary = -1;
+        int afterPrimary = -1;
+        int afterSecondary = -1;
+        (void)SafeRead(weapon + 0xAA8, beforePrimary);
+        (void)SafeRead(weapon + 0xAC0, beforeSecondary);
+        if (g_observedUpdateWeaponSkin)
+            g_observedUpdateWeaponSkin(weaponObject, rebuild);
+        (void)SafeRead(weapon + 0xAA8, afterPrimary);
+        (void)SafeRead(weapon + 0xAC0, afterSecondary);
+        LogWeaponMaterialHook("skin", weapon, rebuild,
+            beforePrimary, beforeSecondary, afterPrimary, afterSecondary,
+            reinterpret_cast<uintptr_t>(_ReturnAddress()));
+    }
+
+    void __fastcall UpdateWeaponSkinAliasDiagnosticHook(void* weaponObject,
+        bool rebuild) {
+        const uintptr_t weapon = reinterpret_cast<uintptr_t>(weaponObject);
+        int beforePrimary = -1;
+        int beforeSecondary = -1;
+        int afterPrimary = -1;
+        int afterSecondary = -1;
+        (void)SafeRead(weapon + 0xAA8, beforePrimary);
+        (void)SafeRead(weapon + 0xAC0, beforeSecondary);
+        if (weapon == g_appliedWeaponSkin.weapon &&
+            g_appliedWeaponSkin.itemView) {
+            (void)InstallItemViewGetTextureSeedOverride(
+                reinterpret_cast<void*>(g_appliedWeaponSkin.itemView));
+        }
+        (void)PrepareAppliedWeaponSkinForMaterial(weapon);
+        if (kBlockRepeatedWeaponSkinAliasTrial &&
+            weapon == g_appliedWeaponSkin.weapon &&
+            g_appliedWeaponSkin.applied) {
+            if (!g_weaponSkinAliasBlockedLogged.exchange(true))
+                LogWeaponMaterialHook("skin-alias-blocked", weapon, rebuild,
+                    beforePrimary, beforeSecondary,
+                    beforePrimary, beforeSecondary,
+                    reinterpret_cast<uintptr_t>(_ReturnAddress()));
+            return;
+        }
+        if (g_observedUpdateWeaponSkinAlias)
+            g_observedUpdateWeaponSkinAlias(weaponObject, rebuild);
+        (void)SafeRead(weapon + 0xAA8, afterPrimary);
+        (void)SafeRead(weapon + 0xAC0, afterSecondary);
+        LogWeaponMaterialHook("skin-alias", weapon, rebuild,
+            beforePrimary, beforeSecondary, afterPrimary, afterSecondary,
+            reinterpret_cast<uintptr_t>(_ReturnAddress()));
+    }
+
+    bool InstallWeaponMaterialDiagnostics() {
+        if (!g_updateCompositeMaterial || !g_updateCompositeMaterialSet ||
+            !g_updateWeaponSkin)
+            return false;
+        const uintptr_t updateSkinAlias = reinterpret_cast<uintptr_t>(
+            reinterpret_cast<unsigned char*>(g_updateWeaponSkin) + 0x50);
+        unsigned char prepareCallOpcode = 0;
+        int32_t prepareCallDisplacement = 0;
+        uintptr_t prepareWeaponSkin = 0;
+        if (SafeRead(updateSkinAlias + 0x0F, prepareCallOpcode) &&
+            prepareCallOpcode == 0xE8 &&
+            SafeRead(updateSkinAlias + 0x10, prepareCallDisplacement)) {
+            prepareWeaponSkin = updateSkinAlias + 0x14 +
+                prepareCallDisplacement;
+        }
+        if (!IsExecutableAddress(
+                reinterpret_cast<void*>(prepareWeaponSkin))) {
+            AppendLog("Weapon material hooks: native midpoint unresolved.");
+            return false;
+        }
+        const uintptr_t materialBuilderCall =
+            reinterpret_cast<uintptr_t>(g_updateCompositeMaterialSet) +
+            0x711;
+        unsigned char materialBuilderOpcode = 0;
+        int32_t materialBuilderDisplacement = 0;
+        uintptr_t materialBuilder = 0;
+        if (SafeRead(materialBuilderCall, materialBuilderOpcode) &&
+            materialBuilderOpcode == 0xE8 &&
+            SafeRead(materialBuilderCall + 1,
+                materialBuilderDisplacement)) {
+            materialBuilder = materialBuilderCall + 5 +
+                materialBuilderDisplacement;
+        }
+        if (!IsExecutableAddress(reinterpret_cast<void*>(materialBuilder))) {
+            AppendLog("Weapon material hooks: builder unresolved.");
+            return false;
+        }
+        g_weaponMaterialHookLogs.store(0);
+        g_weaponSkinMidpointLogged.store(false);
+        g_weaponMaterialOverridesLogged.store(false);
+        if (!InstallWeaponMaterialInlineHook(
+                reinterpret_cast<void*>(prepareWeaponSkin),
+                reinterpret_cast<void*>(&PrepareWeaponSkinDiagnosticHook),
+                15, g_prepareWeaponSkinHook,
+                reinterpret_cast<void**>(&g_observedPrepareWeaponSkin)) ||
+            !InstallWeaponMaterialInlineHook(
+                reinterpret_cast<void*>(g_updateCompositeMaterial),
+                reinterpret_cast<void*>(&CompositeMaterialDiagnosticHook),
+                15, g_compositeMaterialHook,
+                reinterpret_cast<void**>(&g_observedCompositeMaterial)) ||
+            !InstallWeaponMaterialInlineHook(
+                reinterpret_cast<void*>(g_updateCompositeMaterialSet),
+                reinterpret_cast<void*>(&CompositeMaterialSetDiagnosticHook),
+                13, g_compositeMaterialSetHook,
+                reinterpret_cast<void**>(&g_observedCompositeMaterialSet)) ||
+            !InstallWeaponMaterialInlineHook(
+                reinterpret_cast<void*>(materialBuilder),
+                reinterpret_cast<void*>(
+                    &BuildWeaponMaterialOverridesDiagnosticHook),
+                15, g_buildWeaponMaterialOverridesHook,
+                reinterpret_cast<void**>(
+                    &g_observedBuildWeaponMaterialOverrides)) ||
+            !InstallWeaponMaterialInlineHook(
+                reinterpret_cast<void*>(g_updateWeaponSkin),
+                reinterpret_cast<void*>(&UpdateWeaponSkinDiagnosticHook),
+                15, g_updateWeaponSkinHook,
+                reinterpret_cast<void**>(&g_observedUpdateWeaponSkin)) ||
+            !InstallWeaponMaterialInlineHook(
+                reinterpret_cast<unsigned char*>(g_updateWeaponSkin) + 0x50,
+                reinterpret_cast<void*>(
+                    &UpdateWeaponSkinAliasDiagnosticHook),
+                15, g_updateWeaponSkinAliasHook,
+                reinterpret_cast<void**>(
+                    &g_observedUpdateWeaponSkinAlias))) {
+            RemoveWeaponMaterialInlineHook(g_updateWeaponSkinAliasHook);
+            RemoveWeaponMaterialInlineHook(g_updateWeaponSkinHook);
+            RemoveWeaponMaterialInlineHook(
+                g_buildWeaponMaterialOverridesHook);
+            RemoveWeaponMaterialInlineHook(g_compositeMaterialSetHook);
+            RemoveWeaponMaterialInlineHook(g_compositeMaterialHook);
+            RemoveWeaponMaterialInlineHook(g_prepareWeaponSkinHook);
+            g_observedUpdateWeaponSkin = nullptr;
+            g_observedUpdateWeaponSkinAlias = nullptr;
+            g_observedCompositeMaterialSet = nullptr;
+            g_observedCompositeMaterial = nullptr;
+            g_observedPrepareWeaponSkin = nullptr;
+            g_observedBuildWeaponMaterialOverrides = nullptr;
+            return false;
+        }
+        const uintptr_t client = reinterpret_cast<uintptr_t>(
+            GetModuleHandleW(L"client.dll"));
+        char message[192]{};
+        StringCchPrintfA(message, _countof(message),
+            "Weapon material hooks: diagnostics installed midpoint_rva=0x%llX "
+            "builder_rva=0x%llX.",
+            static_cast<unsigned long long>(
+                client ? prepareWeaponSkin - client : prepareWeaponSkin),
+            static_cast<unsigned long long>(
+                client ? materialBuilder - client : materialBuilder));
+        AppendLog(message);
+        return true;
+    }
+
+    void RemoveWeaponMaterialDiagnostics() {
+        RemoveItemViewGetTextureSeedOverride();
+        RemoveWeaponMaterialInlineHook(g_updateWeaponSkinAliasHook);
+        RemoveWeaponMaterialInlineHook(g_updateWeaponSkinHook);
+        RemoveWeaponMaterialInlineHook(g_buildWeaponMaterialOverridesHook);
+        RemoveWeaponMaterialInlineHook(g_compositeMaterialSetHook);
+        RemoveWeaponMaterialInlineHook(g_compositeMaterialHook);
+        RemoveWeaponMaterialInlineHook(g_prepareWeaponSkinHook);
+        g_observedUpdateWeaponSkin = nullptr;
+        g_observedUpdateWeaponSkinAlias = nullptr;
+        g_observedCompositeMaterialSet = nullptr;
+        g_observedCompositeMaterial = nullptr;
+        g_observedPrepareWeaponSkin = nullptr;
+        g_observedBuildWeaponMaterialOverrides = nullptr;
+        AppendLog("Weapon material hooks: diagnostics removed.");
     }
 
     void __fastcall RegisterGloveRenderDiagnosticHook(
@@ -2459,6 +3369,7 @@ namespace {
     struct PatternResult {
         DWORD count = 0;
         uintptr_t first = 0;
+        uintptr_t second = 0;
     };
 
     PatternResult ScanExecutableSections(
@@ -2494,9 +3405,13 @@ namespace {
                 }
                 if (!match) continue;
                 ++result.count;
-                if (!result.first)
+                if (!result.first) {
                     result.first = reinterpret_cast<uintptr_t>(
                         sectionStart + offset);
+                } else if (!result.second) {
+                    result.second = reinterpret_cast<uintptr_t>(
+                        sectionStart + offset);
+                }
             }
         }
         return result;
@@ -2532,6 +3447,13 @@ namespace {
             0x8B, 0xD9, 0x8B, 0x50, 0x30, 0xC1, 0xEA, 0x04,
             0xF6, 0xC2, 0x01
         };
+        constexpr unsigned char updateWeaponGraphController[] = {
+            0x40, 0x55, 0x53, 0x56, 0x57, 0x41, 0x57, 0x48,
+            0x8D, 0x6C, 0x24, 0xC9, 0x48, 0x81, 0xEC, 0xA0,
+            0x00, 0x00, 0x00, 0x48, 0x8D, 0x05, 0x00, 0x00,
+            0x00, 0x00, 0x48, 0xC7, 0x45, 0xCF, 0xB5, 0x00,
+            0x00, 0x00
+        };
         constexpr unsigned char refreshWeaponModules[] = {
             0x48, 0x89, 0x5C, 0x24, 0x10, 0x55, 0x56, 0x57,
             0x41, 0x54, 0x41, 0x55, 0x41, 0x56, 0x41, 0x57,
@@ -2558,6 +3480,28 @@ namespace {
             0x24, 0x00, 0x57, 0x48, 0x83, 0xEC, 0x00, 0x48,
             0x8D, 0x99, 0x00, 0x00, 0x00, 0x00, 0x48, 0x8B,
             0x71
+        };
+        // This callsite is used by current client builds to set an ItemView
+        // attribute by its schema name.
+        constexpr unsigned char setItemViewAttributeCall[] = {
+            0xE8, 0x00, 0x00, 0x00, 0x00, 0x66, 0x41, 0x0F,
+            0x6E, 0xD4
+        };
+        constexpr unsigned char updateCompositeMaterialCall[] = {
+            0x48, 0x81, 0xC1, 0x08, 0x06, 0x00, 0x00, 0xB2,
+            0x01, 0xE8, 0x00, 0x00, 0x00, 0x00
+        };
+        constexpr unsigned char updateCompositeMaterialSet[] = {
+            0x40, 0x55, 0x53, 0x41, 0x57, 0x48, 0x8D, 0xAC,
+            0x24, 0x00, 0xFE, 0x00, 0x00
+        };
+        constexpr unsigned char updateWeaponSkin[] = {
+            0x48, 0x89, 0x5C, 0x24, 0x08, 0x57, 0x48, 0x83,
+            0xEC, 0x20, 0x8B, 0xDA, 0x48, 0x8B, 0xF9, 0xE8,
+            0x00, 0x00, 0x00, 0x00, 0xF6, 0xC3, 0x01, 0x74,
+            0x0A, 0x33, 0xD2, 0x48, 0x8B, 0xCF, 0xE8, 0x00,
+            0x00, 0x00, 0x00, 0x48, 0x8D, 0x8F, 0x90, 0x19,
+            0x00, 0x00
         };
         constexpr unsigned char inventoryManager[] = {
             0x48, 0x8D, 0x05, 0x00, 0x00, 0x00, 0x00, 0xC3,
@@ -2606,6 +3550,15 @@ namespace {
         g_updateSubclass = updateSubclassResult.count == 1
             ? reinterpret_cast<UpdateSubclassFn>(updateSubclassResult.first)
             : nullptr;
+        const PatternResult updateWeaponGraphControllerResult =
+            ScanExecutableSections(client, updateWeaponGraphController,
+                "xxxxxxxxxxxxxxxxxxxxxx????xxxxxxxx");
+        LogPatternResult("UpdateWeaponGraphController", client,
+            updateWeaponGraphControllerResult);
+        g_updateWeaponGraphController =
+            updateWeaponGraphControllerResult.count == 1
+            ? reinterpret_cast<UpdateWeaponGraphControllerFn>(
+                updateWeaponGraphControllerResult.first) : nullptr;
         const PatternResult refreshWeaponModulesResult =
             ScanExecutableSections(client, refreshWeaponModules,
                 "xxxxxxxxxxxxxxxxxxxx?xxx????xxxxxxxxx");
@@ -2636,6 +3589,143 @@ namespace {
         g_setMeshGroupMask = setMeshGroupMaskResult.count == 1
             ? reinterpret_cast<SetMeshGroupMaskFn>(
                 setMeshGroupMaskResult.first) : nullptr;
+        const PatternResult setItemViewAttributeCallResult =
+            ScanExecutableSections(client, setItemViewAttributeCall,
+                "x????xxxxx");
+        LogPatternResult("SetItemViewAttributeByName callsite", client,
+            setItemViewAttributeCallResult);
+        g_setItemViewAttributeByName = nullptr;
+        if (setItemViewAttributeCallResult.count == 1) {
+            int32_t displacement = 0;
+            if (SafeRead(setItemViewAttributeCallResult.first + 1,
+                    displacement)) {
+                const uintptr_t target =
+                    setItemViewAttributeCallResult.first + 5 + displacement;
+                if (IsExecutableAddress(reinterpret_cast<void*>(target)))
+                    g_setItemViewAttributeByName =
+                        reinterpret_cast<SetItemViewAttributeByNameFn>(target);
+            }
+        }
+        char attributeMessage[192]{};
+        StringCchPrintfA(attributeMessage, _countof(attributeMessage),
+            "SetItemViewAttributeByName: resolved=%s target_rva=0x%llX.",
+            g_setItemViewAttributeByName ? "yes" : "no",
+            static_cast<unsigned long long>(g_setItemViewAttributeByName
+                ? reinterpret_cast<uintptr_t>(g_setItemViewAttributeByName) -
+                    reinterpret_cast<uintptr_t>(client)
+                : 0));
+        AppendLog(attributeMessage);
+        // The ItemView wrapper adds 0x208 (m_AttributeList) and calls the
+        // generic CAttributeList setter. Resolve that inner call, then use
+        // it with m_NetworkedDynamicAttributes at 0x280.
+        g_addOrSetAttributeByName = nullptr;
+        if (g_setItemViewAttributeByName) {
+            const uintptr_t wrapper = reinterpret_cast<uintptr_t>(
+                g_setItemViewAttributeByName);
+            uint8_t rex = 0;
+            uint8_t addOpcode = 0;
+            uint8_t addRegister = 0;
+            uint32_t wrapperListOffset = 0;
+            uint8_t callOpcode = 0;
+            int32_t callDisplacement = 0;
+            if (SafeRead(wrapper + 0x09, rex) && rex == 0x48 &&
+                SafeRead(wrapper + 0x0A, addOpcode) &&
+                addOpcode == 0x81 &&
+                SafeRead(wrapper + 0x0B, addRegister) &&
+                addRegister == 0xC1 &&
+                SafeRead(wrapper + 0x0C, wrapperListOffset) &&
+                wrapperListOffset == 0x208 &&
+                SafeRead(wrapper + 0x10, callOpcode) &&
+                callOpcode == 0xE8 &&
+                SafeRead(wrapper + 0x11, callDisplacement)) {
+                const uintptr_t innerSetter = wrapper + 0x15 +
+                    callDisplacement;
+                if (IsExecutableAddress(
+                        reinterpret_cast<void*>(innerSetter))) {
+                    g_addOrSetAttributeByName =
+                        reinterpret_cast<AddOrSetAttributeByNameFn>(
+                            innerSetter);
+                }
+            }
+        }
+        char networkedAttributeMessage[224]{};
+        StringCchPrintfA(networkedAttributeMessage,
+            _countof(networkedAttributeMessage),
+            "AddOrSetNetworkedAttributeByName: resolved=%s "
+            "target_rva=0x%llX list_offset=0x280.",
+            g_addOrSetAttributeByName ? "yes" : "no",
+            static_cast<unsigned long long>(g_addOrSetAttributeByName
+                ? reinterpret_cast<uintptr_t>(
+                    g_addOrSetAttributeByName) -
+                    reinterpret_cast<uintptr_t>(client)
+                : 0));
+        AppendLog(networkedAttributeMessage);
+        const PatternResult updateCompositeMaterialResult =
+            ScanExecutableSections(client, updateCompositeMaterialCall,
+                "xxxxxxxxxx????");
+        LogPatternResult("UpdateCompositeMaterial callsite", client,
+            updateCompositeMaterialResult);
+        g_updateCompositeMaterial = nullptr;
+        g_compositeMaterialOwnerOffset = 0;
+        if (updateCompositeMaterialResult.count == 1) {
+            int32_t callDisplacement = 0;
+            if (SafeRead(updateCompositeMaterialResult.first + 10,
+                    callDisplacement)) {
+                const uintptr_t target =
+                    updateCompositeMaterialResult.first + 14 +
+                    callDisplacement;
+                if (IsExecutableAddress(reinterpret_cast<void*>(target))) {
+                    g_updateCompositeMaterial =
+                        reinterpret_cast<UpdateCompositeMaterialFn>(target);
+                    g_compositeMaterialOwnerOffset = 0x608;
+                }
+            }
+        }
+        char compositeMessage[224]{};
+        StringCchPrintfA(compositeMessage, _countof(compositeMessage),
+            "UpdateCompositeMaterial: resolved=%s target_rva=0x%llX "
+            "owner_offset=0x%llX.",
+            g_updateCompositeMaterial ? "yes" : "no",
+            static_cast<unsigned long long>(g_updateCompositeMaterial
+                ? reinterpret_cast<uintptr_t>(g_updateCompositeMaterial) -
+                    reinterpret_cast<uintptr_t>(client) : 0),
+            static_cast<unsigned long long>(
+                g_compositeMaterialOwnerOffset));
+        AppendLog(compositeMessage);
+        const PatternResult updateCompositeMaterialSetResult =
+            ScanExecutableSections(client, updateCompositeMaterialSet,
+                "xxxxxxxxxxx??");
+        LogPatternResult("UpdateCompositeMaterialSet", client,
+            updateCompositeMaterialSetResult);
+        g_updateCompositeMaterialSet =
+            updateCompositeMaterialSetResult.count == 1
+            ? reinterpret_cast<UpdateCompositeMaterialSetFn>(
+                updateCompositeMaterialSetResult.first) : nullptr;
+        const PatternResult updateWeaponSkinResult =
+            ScanExecutableSections(client, updateWeaponSkin,
+                "xxxxxxxxxxxxxxxx????xxxxxxxxxxx????xxxxxxx");
+        LogPatternResult("UpdateWeaponSkin aliases", client,
+            updateWeaponSkinResult);
+        g_updateWeaponSkin = updateWeaponSkinResult.count == 2 &&
+            updateWeaponSkinResult.second ==
+                updateWeaponSkinResult.first + 0x50
+            ? reinterpret_cast<UpdateWeaponSkinFn>(
+                updateWeaponSkinResult.first) : nullptr;
+        char updateSkinMessage[192]{};
+        StringCchPrintfA(updateSkinMessage, _countof(updateSkinMessage),
+            "UpdateWeaponSkin: resolved=%s target_rva=0x%llX.",
+            g_updateWeaponSkin ? "yes" : "no",
+            static_cast<unsigned long long>(g_updateWeaponSkin
+                ? reinterpret_cast<uintptr_t>(g_updateWeaponSkin) -
+                    reinterpret_cast<uintptr_t>(client) : 0));
+        AppendLog(updateSkinMessage);
+        if (kInstallWeaponMaterialDiagnostics) {
+            AppendLog(InstallWeaponMaterialDiagnostics()
+                ? "Weapon material hooks: ready."
+                : "Weapon material hooks: installation failed.");
+        } else {
+            AppendLog("Weapon material hooks: disabled for native equip trial.");
+        }
         const PatternResult findHudResult = ScanExecutableSections(
             client, findHudElement, "xxxxxxxxx????xxxxxxxx");
         LogPatternResult("FindHudElement", client, findHudResult);
@@ -3668,9 +4758,9 @@ namespace {
     bool WriteInventoryItemIdentity(
         uintptr_t itemView, int definitionIndex,
         const InventorySocacheItemIdentity& identity,
-        const InventorySnapshotSelection& selection) {
+        const InventorySnapshotSelection& selection,
+        int32_t quality = kUnusualItemQuality) {
         const uint16_t definition = static_cast<uint16_t>(definitionIndex);
-        const int32_t quality = kUnusualItemQuality;
         const uint64_t itemId = identity.itemId;
         const uint32_t itemIdHigh = static_cast<uint32_t>(itemId >> 32);
         const uint32_t itemIdLow = static_cast<uint32_t>(itemId);
@@ -4157,6 +5247,55 @@ namespace {
         return 0;
     }
 
+    uintptr_t ResolveHudWeaponSceneNode(
+        uintptr_t entityList, uintptr_t pawn, uintptr_t weapon,
+        uintptr_t stride, const InventorySnapshotSelection& selection) {
+        if (!entityList || !pawn || !weapon ||
+            !selection.hudModelArmsOffset ||
+            !selection.gameSceneNodeOffset ||
+            !selection.sceneNodeOwnerOffset ||
+            !selection.sceneNodeChildOffset ||
+            !selection.sceneNodeNextSiblingOffset ||
+            !selection.ownerEntityOffset)
+            return 0;
+
+        uint32_t hudArmsHandle = 0;
+        if (!SafeRead(pawn + selection.hudModelArmsOffset,
+                hudArmsHandle) || !hudArmsHandle ||
+            hudArmsHandle == 0xFFFFFFFF)
+            return 0;
+        const uintptr_t hudArms = ReadEntityByIndex(entityList,
+            static_cast<int>(hudArmsHandle & 0x7FFF), stride);
+        uintptr_t hudSceneNode = 0;
+        uintptr_t child = 0;
+        if (!hudArms || !SafeRead(hudArms +
+                selection.gameSceneNodeOffset, hudSceneNode) ||
+            !hudSceneNode || !SafeRead(hudSceneNode +
+                selection.sceneNodeChildOffset, child))
+            return 0;
+
+        for (int visited = 0; child && visited < 32; ++visited) {
+            uintptr_t childOwner = 0;
+            uint32_t ownerHandle = 0;
+            if (SafeRead(child + selection.sceneNodeOwnerOffset,
+                    childOwner) && childOwner &&
+                SafeRead(childOwner + selection.ownerEntityOffset,
+                    ownerHandle) && ownerHandle &&
+                ownerHandle != 0xFFFFFFFF &&
+                ReadEntityByIndex(entityList,
+                    static_cast<int>(ownerHandle & 0x7FFF), stride) ==
+                    weapon)
+                return child;
+
+            uintptr_t next = 0;
+            if (!SafeRead(child + selection.sceneNodeNextSiblingOffset,
+                    next) || next == child)
+                break;
+            child = next;
+        }
+        return 0;
+    }
+
     void LogKnifeModelControl(
         const char* action, uintptr_t weapon, uintptr_t viewmodel,
         const char* requested, const char* observedWeapon,
@@ -4256,6 +5395,269 @@ namespace {
         }
     }
 
+    bool SafeSetItemViewSkinAttributes(
+        uintptr_t itemView, int paintKit, int seed, float wear,
+        int statTrak = -1, int statTrakType = 0) {
+        if (!itemView || !g_setItemViewAttributeByName) return false;
+        __try {
+            g_setItemViewAttributeByName(
+                reinterpret_cast<void*>(itemView),
+                "set item texture prefab", static_cast<float>(paintKit));
+            g_setItemViewAttributeByName(
+                reinterpret_cast<void*>(itemView),
+                "set item texture seed", static_cast<float>(seed));
+            g_setItemViewAttributeByName(
+                reinterpret_cast<void*>(itemView),
+                "set item texture wear", wear);
+            if (statTrak >= 0) {
+                g_setItemViewAttributeByName(
+                    reinterpret_cast<void*>(itemView),
+                    "kill eater", EncodeIntegerAttributeValue(
+                        static_cast<uint32_t>(statTrak)));
+                g_setItemViewAttributeByName(
+                    reinterpret_cast<void*>(itemView),
+                    "kill eater score type", EncodeIntegerAttributeValue(
+                        static_cast<uint32_t>(statTrakType)));
+            }
+            return true;
+        }
+        __except (EXCEPTION_EXECUTE_HANDLER) {
+            AppendLog("Weapon skin attributes: ItemView setter faulted.");
+            return false;
+        }
+    }
+
+    bool SafeSetNetworkedItemViewSkinAttributes(
+        uintptr_t itemView, int paintKit, int seed, float wear,
+        int statTrak = -1, int statTrakType = 0) {
+        constexpr uintptr_t kNetworkedDynamicAttributesOffset = 0x280;
+        constexpr uintptr_t kAttributeCountOffset = 0x08;
+        if (!itemView || !g_addOrSetAttributeByName) return false;
+        __try {
+            const int emptyCount = 0;
+            if (!SafeWrite(itemView + kNetworkedDynamicAttributesOffset +
+                    kAttributeCountOffset, emptyCount))
+                return false;
+            void* attributes = reinterpret_cast<void*>(
+                itemView + kNetworkedDynamicAttributesOffset);
+            g_addOrSetAttributeByName(attributes,
+                "set item texture prefab", static_cast<float>(paintKit));
+            g_addOrSetAttributeByName(attributes,
+                "set item texture seed", static_cast<float>(seed));
+            g_addOrSetAttributeByName(attributes,
+                "set item texture wear", wear);
+            if (statTrak >= 0) {
+                g_addOrSetAttributeByName(attributes,
+                    "kill eater", EncodeIntegerAttributeValue(
+                        static_cast<uint32_t>(statTrak)));
+                g_addOrSetAttributeByName(attributes,
+                    "kill eater score type",
+                    EncodeIntegerAttributeValue(
+                        static_cast<uint32_t>(statTrakType)));
+            }
+            return true;
+        }
+        __except (EXCEPTION_EXECUTE_HANDLER) {
+            AppendLog("Weapon skin attributes: networked setter faulted.");
+            return false;
+        }
+    }
+
+    bool SafeClearStaticItemViewAttributes(uintptr_t itemView) {
+        constexpr uintptr_t kStaticDynamicAttributesOffset = 0x208;
+        constexpr uintptr_t kAttributeCountOffset = 0x08;
+        const int emptyCount = 0;
+        return itemView && SafeWrite(itemView +
+            kStaticDynamicAttributesOffset + kAttributeCountOffset,
+            emptyCount);
+    }
+
+    bool SafeRunWeaponCompositeOwnerTrial(uintptr_t weapon) {
+        if (!weapon || !g_updateCompositeMaterial ||
+            !g_compositeMaterialOwnerOffset)
+            return false;
+        __try {
+            g_updateCompositeMaterial(reinterpret_cast<void*>(
+                weapon + g_compositeMaterialOwnerOffset), true);
+            return true;
+        }
+        __except (EXCEPTION_EXECUTE_HANDLER) {
+            AppendLog("Weapon material trial: CompositeOwner faulted.");
+            return false;
+        }
+    }
+
+    bool SafeRunWeaponCompositeSetTrial(uintptr_t weapon) {
+        if (!weapon || !g_updateCompositeMaterialSet) return false;
+        __try {
+            g_updateCompositeMaterialSet(
+                reinterpret_cast<void*>(weapon), false);
+            return true;
+        }
+        __except (EXCEPTION_EXECUTE_HANDLER) {
+            AppendLog("Weapon material trial: CompositeSet faulted.");
+            return false;
+        }
+    }
+
+    bool SafeRunWeaponUpdateSkinTrial(
+        uintptr_t weapon, bool rebuildCompositeSet = true) {
+        if (!weapon || !g_updateWeaponSkin) return false;
+        __try {
+            g_updateWeaponSkin(reinterpret_cast<void*>(weapon),
+                rebuildCompositeSet);
+            return true;
+        }
+        __except (EXCEPTION_EXECUTE_HANDLER) {
+            AppendLog("Weapon material trial: UpdateSkin faulted.");
+            return false;
+        }
+    }
+
+    bool SafeRunWeaponUpdateSubclassTrial(uintptr_t weapon) {
+        if (!weapon || !g_updateSubclass) return false;
+        __try {
+            g_updateSubclass(reinterpret_cast<void*>(weapon));
+            return true;
+        }
+        __except (EXCEPTION_EXECUTE_HANDLER) {
+            AppendLog("Weapon material trial: UpdateSubclass faulted.");
+            return false;
+        }
+    }
+
+    struct WeaponGraphLegacyState {
+        uintptr_t controller = 0;
+        uintptr_t binding = 0;
+        int16_t index = -1;
+        uintptr_t value = 0;
+        bool legacy = false;
+        bool readable = false;
+    };
+
+    WeaponGraphLegacyState ReadWeaponGraphLegacyState(uintptr_t controller) {
+        constexpr uintptr_t kLegacyParamOffset = 0x190;
+        WeaponGraphLegacyState state{};
+        if (!controller) return state;
+        state.controller = controller;
+        if (!SafeRead(state.controller + kLegacyParamOffset + 8,
+                state.binding) ||
+            !SafeRead(state.controller + kLegacyParamOffset + 0x10,
+                state.index) ||
+            !state.binding || state.index < 0)
+            return state;
+        uintptr_t values = 0;
+        if (!SafeRead(state.binding + 0x10, values) || !values ||
+            !SafeRead(values + static_cast<uintptr_t>(state.index) *
+                sizeof(uintptr_t), state.value) || !state.value ||
+            !SafeRead(state.value + 0x18, state.legacy))
+            return state;
+        state.readable = true;
+        return state;
+    }
+
+    uintptr_t ResolveHudWeaponGraphController(uintptr_t weaponSceneNode,
+        const InventorySnapshotSelection& selection) {
+        constexpr uintptr_t kSceneNodeParentOffset = 0x38;
+        constexpr uintptr_t kGraphControllerPointerOffset = 0x1048;
+        if (!weaponSceneNode || !selection.sceneNodeOwnerOffset)
+            return 0;
+        uintptr_t parentSceneNode = 0;
+        uintptr_t parentOwner = 0;
+        uintptr_t controller = 0;
+        uintptr_t vtable = 0;
+        uintptr_t firstVirtual = 0;
+        if (!SafeRead(weaponSceneNode + kSceneNodeParentOffset,
+                parentSceneNode) || !parentSceneNode ||
+            !SafeRead(parentSceneNode + selection.sceneNodeOwnerOffset,
+                parentOwner) || !parentOwner ||
+            !SafeRead(parentOwner + kGraphControllerPointerOffset,
+                controller) || !controller ||
+            !SafeRead(controller, vtable) || !vtable ||
+            !SafeRead(vtable, firstVirtual) ||
+            !IsExecutableAddress(reinterpret_cast<void*>(firstVirtual)))
+            return 0;
+        return controller;
+    }
+
+    bool SafeSyncWeaponGraphController(uintptr_t controller,
+        uintptr_t weapon, WeaponGraphLegacyState& before,
+        WeaponGraphLegacyState& after) {
+        before = ReadWeaponGraphLegacyState(controller);
+        after = before;
+        if (!controller || !weapon || !g_updateWeaponGraphController)
+            return false;
+        uintptr_t vtable = 0;
+        uintptr_t firstVirtual = 0;
+        if (!SafeRead(controller, vtable) || !vtable ||
+            !SafeRead(vtable, firstVirtual) ||
+            !IsExecutableAddress(reinterpret_cast<void*>(firstVirtual)))
+            return false;
+        __try {
+            g_updateWeaponGraphController(
+                reinterpret_cast<void*>(controller),
+                reinterpret_cast<void*>(weapon));
+        }
+        __except (EXCEPTION_EXECUTE_HANDLER) {
+            AppendLog("Weapon graph: native synchronization faulted.");
+            return false;
+        }
+        after = ReadWeaponGraphLegacyState(controller);
+        return true;
+    }
+
+    bool SafePostDataUpdateSceneNode(
+        uintptr_t entity, const InventorySnapshotSelection& selection) {
+        if (!entity || !selection.gameSceneNodeOffset) return false;
+        uintptr_t sceneNode = 0;
+        if (!SafeRead(entity + selection.gameSceneNodeOffset, sceneNode) ||
+            !sceneNode)
+            return false;
+        const auto postDataUpdate =
+            GetVirtualFunction<SceneNodePostDataUpdateFn>(
+                reinterpret_cast<void*>(sceneNode), 25);
+        if (!IsExecutableAddress(reinterpret_cast<void*>(postDataUpdate)))
+            return false;
+        __try {
+            postDataUpdate(reinterpret_cast<void*>(sceneNode), 0, 0);
+            return true;
+        }
+        __except (EXCEPTION_EXECUTE_HANDLER) {
+            AppendLog("Weapon skin scene: PostDataUpdate faulted.");
+            return false;
+        }
+    }
+
+    bool SafeSetMeshGroupMaskOnSceneNode(
+        uintptr_t sceneNode, uint64_t mask) {
+        if (!sceneNode || !g_setMeshGroupMask) return false;
+        __try {
+            g_setMeshGroupMask(reinterpret_cast<void*>(sceneNode), mask);
+            return true;
+        }
+        __except (EXCEPTION_EXECUTE_HANDLER) {
+            AppendLog("Weapon skin scene: child mesh update faulted.");
+            return false;
+        }
+    }
+
+    bool SafePostDataUpdateSceneNodeAddress(uintptr_t sceneNode) {
+        if (!sceneNode) return false;
+        const auto postDataUpdate =
+            GetVirtualFunction<SceneNodePostDataUpdateFn>(
+                reinterpret_cast<void*>(sceneNode), 25);
+        if (!IsExecutableAddress(reinterpret_cast<void*>(postDataUpdate)))
+            return false;
+        __try {
+            postDataUpdate(reinterpret_cast<void*>(sceneNode), 0, 0);
+            return true;
+        }
+        __except (EXCEPTION_EXECUTE_HANDLER) {
+            AppendLog("Weapon skin scene: child PostDataUpdate faulted.");
+            return false;
+        }
+    }
+
     bool SafeRefreshKnifeComposite(
         uintptr_t weapon, bool resetCustomMaterials = false) {
         using UpdateCompositeFn = void* (__fastcall*)(void*, bool);
@@ -4324,7 +5726,7 @@ namespace {
         }
     }
 
-    bool RefreshKnifeHud(uintptr_t itemView) {
+    bool RefreshWeaponHudCache(uintptr_t itemView, const char* context) {
         if (!itemView || !g_findHudElement || !g_clearHudWeaponIcon)
             return false;
         const uintptr_t emptyDescription = 0;
@@ -4355,12 +5757,13 @@ namespace {
             }
             char message[128]{};
             StringCchPrintfA(message, _countof(message),
-                "Knife HUD: cache refrescada, entradas=%d.", cleared);
+                "%s HUD: cache refrescada, entradas=%d.",
+                context ? context : "Weapon", cleared);
             AppendLog(message);
             return true;
         }
         __except (EXCEPTION_EXECUTE_HANDLER) {
-            AppendLog("Knife HUD: excepcion al refrescar; operacion cancelada.");
+            AppendLog("Weapon HUD: excepcion al refrescar; operacion cancelada.");
             return false;
         }
     }
@@ -4370,7 +5773,8 @@ namespace {
             now < g_appliedKnife.hudRefreshAt)
             return;
         ++g_appliedKnife.hudRefreshAttempts;
-        g_appliedKnife.hudRefreshed = RefreshKnifeHud(itemView);
+        g_appliedKnife.hudRefreshed = RefreshWeaponHudCache(
+            itemView, "Knife");
         if (!g_appliedKnife.hudRefreshed) {
             g_appliedKnife.hudRefreshAt = now + 250;
             if (g_appliedKnife.hudRefreshAttempts >= 5) {
@@ -4418,6 +5822,1404 @@ namespace {
             SafeWrite(weapon + selection.fallbackWearOffset, wear) &&
             SafeWrite(weapon + selection.fallbackStatTrakOffset, statTrak) &&
             SafeWrite(itemView + selection.itemIdHighOffset, itemIdHigh);
+    }
+
+    bool HasRetainedWeaponSkinState() {
+        for (const auto& state : g_retainedWeaponSkins) {
+            if (state.applied) return true;
+        }
+        return false;
+    }
+
+    void UpdateWeaponSkinAppliedFlag() {
+        InterlockedExchange(&g_weaponSkinApplied,
+            (g_appliedWeaponSkin.applied || HasRetainedWeaponSkinState())
+                ? 1 : 0);
+    }
+
+    void ClearAppliedWeaponSkinState() {
+        UnregisterWeaponTextureSeedOverride(g_appliedWeaponSkin.itemView);
+        g_appliedWeaponSkin = {};
+        UpdateWeaponSkinAppliedFlag();
+    }
+
+    void RetainAppliedWeaponSkinState() {
+        if (!g_appliedWeaponSkin.applied) return;
+        AppliedWeaponSkinState* destination = nullptr;
+        for (auto& retained : g_retainedWeaponSkins) {
+            if (retained.applied &&
+                retained.weapon == g_appliedWeaponSkin.weapon) {
+                destination = &retained;
+                break;
+            }
+            if (!destination && !retained.applied)
+                destination = &retained;
+        }
+        if (destination) *destination = g_appliedWeaponSkin;
+        char message[192]{};
+        StringCchPrintfA(message, _countof(message),
+            "Weapon skin lifecycle: retained weapon=0x%llX handle=0x%08X local=%llu.",
+            static_cast<unsigned long long>(g_appliedWeaponSkin.weapon),
+            g_appliedWeaponSkin.weaponHandle,
+            static_cast<unsigned long long>(g_appliedWeaponSkin.localId));
+        AppendLog(message);
+        g_appliedWeaponSkin = {};
+        UpdateWeaponSkinAppliedFlag();
+    }
+
+    bool ResumeRetainedWeaponSkinState(
+        uintptr_t weapon, uint32_t weaponHandle) {
+        for (auto& retained : g_retainedWeaponSkins) {
+            if (!retained.applied || retained.weapon != weapon ||
+                retained.weaponHandle != weaponHandle)
+                continue;
+            g_appliedWeaponSkin = retained;
+            retained = {};
+            // A newly rebound viewmodel needs one maintenance pass, but the
+            // weapon material itself can remain cached across switches/drops.
+            g_appliedWeaponSkin.sceneUpdatePending = true;
+            g_appliedWeaponSkin.nextUpdateAt = 0;
+            (void)RegisterWeaponTextureSeedOverride(
+                g_appliedWeaponSkin.itemView,
+                g_appliedWeaponSkin.itemIdOffset,
+                g_appliedWeaponSkin.generatedItemId,
+                g_appliedWeaponSkin.paintKit,
+                g_appliedWeaponSkin.seed, true);
+            char message[192]{};
+            StringCchPrintfA(message, _countof(message),
+                "Weapon skin lifecycle: resumed weapon=0x%llX handle=0x%08X local=%llu.",
+                static_cast<unsigned long long>(weapon), weaponHandle,
+                static_cast<unsigned long long>(
+                    g_appliedWeaponSkin.localId));
+            AppendLog(message);
+            UpdateWeaponSkinAppliedFlag();
+            return true;
+        }
+        return false;
+    }
+
+    const InventorySnapshotSelection::WeaponSkinCollectionItem*
+    FindEquippedWeaponSkin(
+        const InventorySnapshotSelection& selection, int definitionIndex,
+        int gameTeam) {
+        const int protocolTeam = gameTeam == kTerroristTeam
+            ? 1 : gameTeam == kCounterTerroristTeam ? 2 : 0;
+        if (!protocolTeam) return nullptr;
+        for (int index = 0; index < selection.weaponSkinItemCount; ++index) {
+            const auto& item = selection.weaponSkinItems[index];
+            if (item.definitionIndex == definitionIndex &&
+                (item.equippedTeam & protocolTeam) != 0)
+                return &item;
+        }
+        return nullptr;
+    }
+
+    const InventorySnapshotSelection::WeaponSkinCollectionItem*
+    FindWeaponSkinForLiveEntity(
+        const InventorySnapshotSelection& selection, int definitionIndex,
+        int gameTeam, uintptr_t weapon, uintptr_t itemView) {
+        // Once an entity has acquired one of our generated identities, keep
+        // that identity for the lifetime of the entity. Changing the loadout
+        // should affect future purchases, not repaint a dropped weapon when
+        // it is picked up again.
+        if (g_appliedWeaponSkin.applied &&
+            g_appliedWeaponSkin.weapon == weapon) {
+            const auto* retainedItem = FindWeaponSkinCollectionItem(
+                selection, g_appliedWeaponSkin.localId);
+            if (retainedItem &&
+                retainedItem->definitionIndex == definitionIndex)
+                return retainedItem;
+        }
+
+        uint64_t liveItemId = 0;
+        uint64_t liveLocalId = 0;
+        if (itemView && selection.itemIdOffset &&
+            SafeRead(itemView + selection.itemIdOffset, liveItemId) &&
+            liveItemId && ResolveInventorySocacheGeneratedLocalId(
+                liveItemId, liveLocalId)) {
+            const auto* liveItem = FindWeaponSkinCollectionItem(
+                selection, liveLocalId);
+            if (liveItem && liveItem->definitionIndex == definitionIndex)
+                return liveItem;
+        }
+
+        return FindEquippedWeaponSkin(selection, definitionIndex, gameTeam);
+    }
+
+    bool WeaponObserverDue(ULONGLONG now) {
+        if (now < g_nextWeaponObserverLogAt) return false;
+        g_nextWeaponObserverLogAt = now + 10000;
+        return true;
+    }
+
+    void LogWeaponObserverWait(const char* state, int team = 0,
+        int definitionIndex = 0) {
+        char message[224]{};
+        StringCchPrintfA(message, _countof(message),
+            "Weapon observer: state=%s stage6=%ld team=%d def=%d "
+            "attr_setter=%s.",
+            state ? state : "unknown",
+            InterlockedCompareExchange(&g_frameStageSixCalls, 0, 0),
+            team, definitionIndex,
+            g_setItemViewAttributeByName ? "itemview" : "no");
+        AppendLog(message);
+    }
+
+    void RestoreAppliedWeaponSkin(
+        const InventorySnapshotSelection& selection, const char* reason) {
+        if (!g_appliedWeaponSkin.applied) {
+            ClearAppliedWeaponSkinState();
+            return;
+        }
+
+        HMODULE client = GetModuleHandleW(L"client.dll");
+        uintptr_t entityList = 0;
+        const bool entityValid = client && selection.entityListOffset &&
+            SafeRead(reinterpret_cast<uintptr_t>(client) +
+                selection.entityListOffset, entityList) && entityList &&
+            IsKnifeEntityHandleValid(entityList,
+                g_appliedWeaponSkin.entityStride,
+                g_appliedWeaponSkin.weapon,
+                g_appliedWeaponSkin.weaponHandle);
+        if (!entityValid) {
+            AppendLog("Weapon skin: restauracion omitida; entidad expirada.");
+            ClearAppliedWeaponSkinState();
+            return;
+        }
+
+        const uintptr_t itemView = g_appliedWeaponSkin.weapon +
+            selection.attributeManagerOffset + selection.itemOffset;
+        constexpr uintptr_t kRestoreCustomMaterialOffset = 0x1B8;
+        constexpr uintptr_t kDisallowSocOffset = 0x1E9;
+        const bool contextCleared =
+            ClearInventorySocacheItemView(itemView);
+        const bool restored =
+            SafeWrite(itemView + selection.itemDefinitionIndexOffset,
+                g_appliedWeaponSkin.originalDefinition) &&
+            SafeWrite(itemView + selection.entityQualityOffset,
+                g_appliedWeaponSkin.originalQuality) &&
+            SafeWrite(itemView + selection.itemIdOffset,
+                g_appliedWeaponSkin.originalItemId) &&
+            SafeWrite(itemView + selection.itemIdHighOffset,
+                g_appliedWeaponSkin.originalItemIdHigh) &&
+            SafeWrite(itemView + selection.itemIdLowOffset,
+                g_appliedWeaponSkin.originalItemIdLow) &&
+            SafeWrite(itemView + selection.accountIdOffset,
+                g_appliedWeaponSkin.originalAccountId) &&
+            SafeWrite(itemView + selection.initializedOffset,
+                g_appliedWeaponSkin.originalInitialized) &&
+            SafeWrite(g_appliedWeaponSkin.weapon +
+                selection.fallbackPaintKitOffset,
+                g_appliedWeaponSkin.originalPaintKit) &&
+            SafeWrite(g_appliedWeaponSkin.weapon +
+                selection.fallbackSeedOffset,
+                g_appliedWeaponSkin.originalSeed) &&
+            SafeWrite(g_appliedWeaponSkin.weapon +
+                selection.fallbackWearOffset,
+                g_appliedWeaponSkin.originalWear) &&
+            SafeWrite(g_appliedWeaponSkin.weapon +
+                selection.fallbackStatTrakOffset,
+                g_appliedWeaponSkin.originalStatTrak) &&
+            SafeWrite(itemView + kRestoreCustomMaterialOffset,
+                g_appliedWeaponSkin.originalRestoreCustomMaterial) &&
+            SafeWrite(itemView + kDisallowSocOffset,
+                g_appliedWeaponSkin.originalDisallowSoc);
+
+        if (restored) {
+            (void)RefreshWeaponHudCache(itemView, "Weapon skin");
+        }
+        char message[224]{};
+        StringCchPrintfA(message, _countof(message),
+            "Weapon skin: %s local=%llu def=%d context_cleared=%s "
+            "restored=%s.",
+            reason ? reason : "restore",
+            static_cast<unsigned long long>(g_appliedWeaponSkin.localId),
+            g_appliedWeaponSkin.definitionIndex,
+            contextCleared ? "yes" : "no",
+            restored ? "yes" : "no");
+        AppendLog(message);
+        ClearAppliedWeaponSkinState();
+    }
+
+    void RestoreRetainedWeaponSkins(
+        const InventorySnapshotSelection& selection, const char* reason) {
+        for (auto& retained : g_retainedWeaponSkins) {
+            if (!retained.applied) continue;
+            g_appliedWeaponSkin = retained;
+            retained = {};
+            RestoreAppliedWeaponSkin(selection, reason);
+        }
+        UpdateWeaponSkinAppliedFlag();
+    }
+
+    void RunWeaponSkinRuntimeControl(WeaponSkinRuntimePhase phase) {
+        const ULONGLONG now = GetTickCount64();
+        const bool earlyStage =
+            phase == WeaponSkinRuntimePhase::EarlyNetUpdate;
+        if (!earlyStage && !kUseNetworkedWeaponAttributesTrial &&
+            now < g_appliedWeaponSkin.nextUpdateAt)
+            return;
+        if (!earlyStage && !kUseNetworkedWeaponAttributesTrial)
+            g_appliedWeaponSkin.nextUpdateAt = now + 100;
+
+        InventorySnapshotSelection selection;
+        if (!ReadPublishedInventorySelection(selection)) {
+            if (WeaponObserverDue(now))
+                LogWeaponObserverWait("snapshot-missing");
+            return;
+        }
+        if (!selection.attributeManagerOffset || !selection.itemOffset ||
+            !selection.itemDefinitionIndexOffset ||
+            !selection.entityQualityOffset || !selection.itemIdOffset ||
+            !selection.itemIdHighOffset || !selection.itemIdLowOffset ||
+            !selection.accountIdOffset || !selection.initializedOffset ||
+            !selection.fallbackPaintKitOffset ||
+            !selection.fallbackSeedOffset ||
+            !selection.fallbackWearOffset ||
+            !selection.fallbackStatTrakOffset) {
+            ClearWeaponTextureSeedOverrides();
+            g_appliedWeaponSkin = {};
+            for (auto& retained : g_retainedWeaponSkins) retained = {};
+            UpdateWeaponSkinAppliedFlag();
+            if (WeaponObserverDue(now))
+                LogWeaponObserverWait("offsets-missing");
+            return;
+        }
+        if (!selection.enabled) {
+            RestoreAppliedWeaponSkin(selection, "disabled");
+            RestoreRetainedWeaponSkins(selection, "disabled-retained");
+            if (WeaponObserverDue(now))
+                LogWeaponObserverWait("inventory-disabled");
+            return;
+        }
+
+        HMODULE client = GetModuleHandleW(L"client.dll");
+        uintptr_t controller = 0;
+        uintptr_t pawn = 0;
+        uintptr_t stride = 0;
+        if (!ResolveAccountPawn(client, selection, controller, pawn, stride) ||
+            !pawn) {
+            if (g_appliedWeaponSkin.applied)
+                RetainAppliedWeaponSkinState();
+            if (WeaponObserverDue(now))
+                LogWeaponObserverWait("pawn-missing");
+            return;
+        }
+
+        int team = 0;
+        if (!SafeRead(pawn + selection.teamNumberOffset, team)) return;
+        float spawnTimeIndex = 0.0f;
+        if (selection.lastSpawnTimeIndexOffset)
+            (void)SafeRead(pawn + selection.lastSpawnTimeIndexOffset,
+                spawnTimeIndex);
+        uintptr_t entityList = 0;
+        uint32_t weaponHandle = 0;
+        uintptr_t weapon = 0;
+        if (!ResolveActiveWeaponForPawn(client, selection, pawn, stride,
+                entityList, weaponHandle, weapon)) {
+            if (g_appliedWeaponSkin.applied)
+                RetainAppliedWeaponSkinState();
+            if (WeaponObserverDue(now))
+                LogWeaponObserverWait("active-weapon-missing", team);
+            return;
+        }
+
+        const uintptr_t itemView = weapon +
+            selection.attributeManagerOffset + selection.itemOffset;
+        uint16_t definitionIndex = 0;
+        if (!SafeRead(itemView + selection.itemDefinitionIndexOffset,
+                definitionIndex))
+            return;
+        if (IsKnifeDefinition(definitionIndex)) {
+            if (g_appliedWeaponSkin.applied)
+                RetainAppliedWeaponSkinState();
+            if (WeaponObserverDue(now))
+                LogWeaponObserverWait("knife-active", team, definitionIndex);
+            return;
+        }
+
+        // Stage 3 runs every frame so a newly spawned weapon receives its
+        // finish before the renderer creates the first material composite.
+        if (earlyStage && g_appliedWeaponSkin.applied &&
+            g_appliedWeaponSkin.weapon == weapon &&
+            g_appliedWeaponSkin.weaponHandle == weaponHandle)
+            return;
+
+        if (g_appliedWeaponSkin.applied &&
+            g_appliedWeaponSkin.weapon != weapon)
+            RetainAppliedWeaponSkinState();
+        if (!g_appliedWeaponSkin.applied)
+            (void)ResumeRetainedWeaponSkinState(weapon, weaponHandle);
+
+        const auto* target = FindWeaponSkinForLiveEntity(
+            selection, definitionIndex, team, weapon, itemView);
+        if (!target) {
+            if (g_appliedWeaponSkin.applied)
+                RestoreAppliedWeaponSkin(selection, "selection-missing");
+            if (WeaponObserverDue(now))
+                LogWeaponObserverWait("selection-missing", team,
+                    definitionIndex);
+            return;
+        }
+        if (g_appliedWeaponSkin.applied &&
+            g_appliedWeaponSkin.localId != target->localId) {
+            RestoreAppliedWeaponSkin(selection, "selection-changed");
+            return;
+        }
+
+        InventorySocacheItemSpec spec{};
+        spec.localId = target->localId;
+        spec.team = 0;
+        spec.definitionIndex = target->definitionIndex;
+        spec.paintKit = target->paintKit;
+        spec.seed = target->seed;
+        spec.wear = target->wear;
+        spec.statTrak = target->statTrak;
+        spec.statTrakCount = target->statTrakCount;
+        spec.statTrakType = 0;
+        spec.quality = target->quality;
+        spec.rarity = target->rarity;
+        spec.loadoutSlot = kWeaponSkinCollectionSlot;
+        spec.itemViewItemIdOffset = selection.itemIdOffset;
+        spec.unacknowledged = IsPendingRevealItem(
+            selection, target->localId);
+        spec.equip = false;
+        InventorySocacheItemIdentity identity{};
+        if (!EnsureInventorySocacheItem(spec, identity)) {
+            if (WeaponObserverDue(now))
+                LogWeaponObserverWait("socache-item-missing", team,
+                    definitionIndex);
+            return;
+        }
+        uintptr_t sourceItemView = 0;
+        int sourceLoadoutSlot = -1;
+        uint64_t liveItemId = 0;
+        const bool liveIdentityMatches =
+            SafeRead(itemView + selection.itemIdOffset, liveItemId) &&
+            liveItemId == identity.itemId;
+        const bool sourceItemViewReady =
+            ResolveInventorySocacheLoadoutItemView(target->localId, team,
+                selection.itemIdOffset, sourceItemView,
+                sourceLoadoutSlot);
+        if (!sourceItemViewReady && !liveIdentityMatches) {
+            if (WeaponObserverDue(now))
+                LogWeaponObserverWait("loadout-view-missing", team,
+                    definitionIndex);
+            return;
+        }
+        identity.loadoutItemView = sourceItemView;
+
+        constexpr uintptr_t kRestoreCustomMaterialOffset = 0x1B8;
+        constexpr uintptr_t kDisallowSocOffset = 0x1E9;
+        if (!g_appliedWeaponSkin.applied) {
+            AppliedWeaponSkinState next{};
+            next.pawn = pawn;
+            next.entityStride = stride;
+            next.weapon = weapon;
+            next.weaponHandle = weaponHandle;
+            next.localId = target->localId;
+            next.definitionIndex = target->definitionIndex;
+            next.paintKit = target->paintKit;
+            next.seed = target->seed;
+            next.wear = target->wear;
+            next.statTrak = target->statTrak
+                ? target->statTrakCount : -1;
+            next.quality = target->quality;
+            next.generatedItemId = identity.itemId;
+            next.itemView = itemView;
+            next.spawnTimeIndex = spawnTimeIndex;
+            next.lifecycleGeneration =
+                g_weaponSkinLifecycleGeneration.load();
+            next.itemIdOffset = selection.itemIdOffset;
+            next.itemIdHighOffset = selection.itemIdHighOffset;
+            next.itemIdLowOffset = selection.itemIdLowOffset;
+            next.initializedOffset = selection.initializedOffset;
+            next.fallbackPaintKitOffset =
+                selection.fallbackPaintKitOffset;
+            next.fallbackSeedOffset = selection.fallbackSeedOffset;
+            next.fallbackWearOffset = selection.fallbackWearOffset;
+            next.fallbackStatTrakOffset =
+                selection.fallbackStatTrakOffset;
+            next.nextUpdateAt = now + 100;
+            next.hudRefreshAt = now + 250;
+            const bool captured =
+                SafeRead(itemView + selection.itemDefinitionIndexOffset,
+                    next.originalDefinition) &&
+                SafeRead(itemView + selection.entityQualityOffset,
+                    next.originalQuality) &&
+                SafeRead(itemView + selection.itemIdOffset,
+                    next.originalItemId) &&
+                SafeRead(itemView + selection.itemIdHighOffset,
+                    next.originalItemIdHigh) &&
+                SafeRead(itemView + selection.itemIdLowOffset,
+                    next.originalItemIdLow) &&
+                SafeRead(itemView + selection.accountIdOffset,
+                    next.originalAccountId) &&
+                SafeRead(itemView + selection.initializedOffset,
+                    next.originalInitialized) &&
+                SafeRead(weapon + selection.fallbackPaintKitOffset,
+                    next.originalPaintKit) &&
+                SafeRead(weapon + selection.fallbackSeedOffset,
+                    next.originalSeed) &&
+                SafeRead(weapon + selection.fallbackWearOffset,
+                    next.originalWear) &&
+                SafeRead(weapon + selection.fallbackStatTrakOffset,
+                    next.originalStatTrak) &&
+                SafeRead(itemView + kRestoreCustomMaterialOffset,
+                    next.originalRestoreCustomMaterial) &&
+                SafeRead(itemView + kDisallowSocOffset,
+                    next.originalDisallowSoc);
+            if (!captured) return;
+            g_appliedWeaponSkin = next;
+            g_weaponMaterialHookLogs.store(0);
+            g_weaponSkinAliasBlockedLogged.store(false);
+            g_weaponSkinMidpointLogged.store(false);
+        }
+
+        uint64_t currentItemId = 0;
+        int32_t currentQuality = 0;
+        int currentPaintKit = 0;
+        int currentSeed = 0;
+        float currentWear = 0.0f;
+        int currentStatTrak = -1;
+        (void)SafeRead(itemView + selection.itemIdOffset, currentItemId);
+        (void)SafeRead(itemView + selection.entityQualityOffset,
+            currentQuality);
+        (void)SafeRead(weapon + selection.fallbackPaintKitOffset,
+            currentPaintKit);
+        (void)SafeRead(weapon + selection.fallbackSeedOffset, currentSeed);
+        (void)SafeRead(weapon + selection.fallbackWearOffset, currentWear);
+        (void)SafeRead(weapon + selection.fallbackStatTrakOffset,
+            currentStatTrak);
+        const int targetStatTrak = target->statTrak
+            ? target->statTrakCount : -1;
+        const float wearDelta = currentWear - target->wear;
+        const bool spawnChanged = g_appliedWeaponSkin.applied &&
+            selection.lastSpawnTimeIndexOffset &&
+            g_appliedWeaponSkin.spawnTimeIndex != spawnTimeIndex;
+        const uint32_t lifecycleGeneration =
+            g_weaponSkinLifecycleGeneration.load();
+        const bool lifecycleChanged = g_appliedWeaponSkin.applied &&
+            g_appliedWeaponSkin.lifecycleGeneration != lifecycleGeneration;
+        const bool drifted = spawnChanged || lifecycleChanged ||
+            currentItemId != identity.itemId ||
+            currentQuality != target->quality ||
+            currentPaintKit != target->paintKit ||
+            currentSeed != target->seed || wearDelta > 0.000001f ||
+            wearDelta < -0.000001f || currentStatTrak != targetStatTrak;
+
+        const bool observerDue = WeaponObserverDue(now);
+        if (observerDue) {
+            uint8_t itemViewInitialized = 0;
+            uint8_t attributesInitialized = 0;
+            int dynamicAttributeCount = -1;
+            int networkedAttributeCount = -1;
+            (void)SafeRead(itemView + selection.initializedOffset,
+                itemViewInitialized);
+            if (selection.attributeManagerOffset >= 8)
+                (void)SafeRead(weapon + selection.attributeManagerOffset - 8,
+                    attributesInitialized);
+            (void)SafeRead(itemView + 0x210, dynamicAttributeCount);
+            (void)SafeRead(itemView + 0x288, networkedAttributeCount);
+            int materialPrimaryCount = -1;
+            int materialSecondaryCount = -1;
+            uint8_t restoreCustomMaterial = 0;
+            (void)SafeRead(weapon + 0xAA8, materialPrimaryCount);
+            (void)SafeRead(weapon + 0xAC0, materialSecondaryCount);
+            (void)SafeRead(itemView + kRestoreCustomMaterialOffset,
+                restoreCustomMaterial);
+            char message[480]{};
+            StringCchPrintfA(message, _countof(message),
+                "Weapon observer: state=target stage6=%ld team=%d def=%u "
+                "local=%llu weapon=0x%llX view=0x%llX source=0x%llX "
+                "slot=%d id=%llu quality=%d/%u paint=%d/%d seed=%d/%d "
+                "wear=%.6f/%.6f stattrak=%d/%d init=%u/%u attrs=%d/%d "
+                "materials=%d/%d restore=%u drift=%s setter=%s.",
+                InterlockedCompareExchange(&g_frameStageSixCalls, 0, 0),
+                team, static_cast<unsigned>(definitionIndex),
+                static_cast<unsigned long long>(target->localId),
+                static_cast<unsigned long long>(weapon),
+                static_cast<unsigned long long>(itemView),
+                static_cast<unsigned long long>(sourceItemView),
+                sourceLoadoutSlot,
+                static_cast<unsigned long long>(currentItemId),
+                currentQuality, static_cast<unsigned>(target->quality),
+                currentPaintKit, target->paintKit,
+                currentSeed, target->seed, currentWear, target->wear,
+                currentStatTrak, targetStatTrak,
+                static_cast<unsigned>(itemViewInitialized),
+                static_cast<unsigned>(attributesInitialized),
+                dynamicAttributeCount, networkedAttributeCount,
+                materialPrimaryCount, materialSecondaryCount,
+                static_cast<unsigned>(restoreCustomMaterial),
+                drifted ? "yes" : "no",
+                g_setItemViewAttributeByName ? "itemview" : "no");
+            AppendLog(message);
+            LogInventorySocacheItemViewDiagnostics(
+                itemView, identity.loadoutItemView);
+        }
+
+        if (!g_appliedWeaponSkin.applied || drifted) {
+            const bool restoreCustomMaterial = true;
+            const bool allowSoc = false;
+            g_appliedWeaponSkin.applied = true;
+            const bool textureSeedRegistered =
+                RegisterWeaponTextureSeedOverride(
+                    itemView, selection.itemIdOffset, identity.itemId,
+                    target->paintKit, target->seed, false);
+            const bool textureSeedGetterOverridden =
+                textureSeedRegistered &&
+                InstallItemViewGetTextureSeedOverride(
+                    reinterpret_cast<void*>(itemView));
+            const bool itemViewCopied = !kCopyWeaponItemViewTrial ||
+                !identity.loadoutItemView ||
+                CopyInventorySocacheItemView(
+                    itemView, identity.loadoutItemView);
+            const bool identityWritten = WriteInventoryItemIdentity(
+                itemView, target->definitionIndex, identity, selection,
+                target->quality);
+            const bool finishWritten = WriteKnifeFinish(
+                weapon, itemView, selection, target->paintKit,
+                target->seed, target->wear, targetStatTrak,
+                static_cast<uint32_t>(identity.itemId >> 32));
+            constexpr uint32_t kFallbackItemIdPart = 0xFFFFFFFFu;
+            const bool fallbackIdentityWritten =
+                !kUseNetworkedWeaponAttributesTrial ||
+                (SafeWrite(itemView + selection.itemIdHighOffset,
+                    kFallbackItemIdPart) &&
+                SafeWrite(itemView + selection.itemIdLowOffset,
+                    kFallbackItemIdPart));
+            const bool flagsWritten = SafeWrite(itemView +
+                    kRestoreCustomMaterialOffset, restoreCustomMaterial) &&
+                SafeWrite(itemView + kDisallowSocOffset, allowSoc);
+            const bool staticAttributesCleared =
+                !kClearStaticWeaponAttributesTrial ||
+                SafeClearStaticItemViewAttributes(itemView);
+            if (!textureSeedGetterOverridden || !itemViewCopied ||
+                !identityWritten || !finishWritten ||
+                !fallbackIdentityWritten || !flagsWritten ||
+                !staticAttributesCleared) {
+                RestoreAppliedWeaponSkin(selection, "apply-write-failed");
+                return;
+            }
+            if (!RegisterWeaponTextureSeedOverride(
+                    itemView, selection.itemIdOffset, identity.itemId,
+                    target->paintKit, target->seed, true)) {
+                RestoreAppliedWeaponSkin(
+                    selection, "texture-seed-registry-failed");
+                return;
+            }
+
+            uintptr_t viewmodel = ResolveHudViewModelForWeapon(
+                entityList, pawn, weapon, stride, selection);
+            const uintptr_t viewmodelSceneNode = ResolveHudWeaponSceneNode(
+                entityList, pawn, weapon, stride, selection);
+            const uint64_t meshGroupMask = kForceModernWeaponMeshTrial
+                ? 1 : (target->legacyModel ? 2 : 1);
+            // The native attribute setter can start material composition
+            // immediately. Select the legacy/modern mesh first so the
+            // composite is generated against the matching UV layout.
+            const bool weaponMeshUpdated = SafeSetMeshGroupMask(
+                weapon, selection, meshGroupMask);
+            const bool viewmodelMeshUpdated = viewmodel &&
+                SafeSetMeshGroupMask(viewmodel, selection, meshGroupMask);
+            const bool viewmodelSceneMeshUpdated = viewmodelSceneNode &&
+                SafeSetMeshGroupMaskOnSceneNode(
+                    viewmodelSceneNode, meshGroupMask);
+            const bool attributesWritten =
+                kUseNetworkedWeaponAttributesTrial
+                ? SafeSetNetworkedItemViewSkinAttributes(itemView,
+                    target->paintKit, target->seed, target->wear,
+                    targetStatTrak)
+                : SafeSetItemViewSkinAttributes(itemView,
+                    target->paintKit, target->seed, target->wear,
+                    targetStatTrak);
+            const bool weaponPostUpdated = !earlyStage &&
+                SafePostDataUpdateSceneNode(weapon, selection);
+            const bool viewmodelPostUpdated = !earlyStage && viewmodel &&
+                SafePostDataUpdateSceneNode(viewmodel, selection);
+            g_appliedWeaponSkin.sceneUpdatePending = earlyStage;
+            g_appliedWeaponSkin.materialRefreshPending = true;
+            g_appliedWeaponSkin.materialRefreshAt = now;
+            g_appliedWeaponSkin.spawnTimeIndex = spawnTimeIndex;
+            g_appliedWeaponSkin.lifecycleGeneration = lifecycleGeneration;
+            LogInventorySocacheItemViewDiagnostics(
+                itemView, identity.loadoutItemView);
+            g_appliedWeaponSkin.generatedItemId = identity.itemId;
+            g_appliedWeaponSkin.hudRefreshed = false;
+            g_appliedWeaponSkin.hudRefreshAttempts = 0;
+            g_appliedWeaponSkin.hudRefreshAt = now + 250;
+            g_appliedWeaponSkin.materialTrialAt = now + 2000;
+            g_appliedWeaponSkin.materialTrialStage = 0;
+            g_appliedWeaponSkin.materialTrialDone =
+                kWeaponMaterialTrialMode == WeaponMaterialTrialMode::None;
+            UpdateWeaponSkinAppliedFlag();
+
+            char message[448]{};
+            StringCchPrintfA(message, _countof(message),
+                "Weapon skin: applied local=%llu def=%d paint=%d seed=%d "
+                "wear=%.6f stattrak=%d quality=%u legacy=%s mesh=%llu "
+                "slot=%d phase=%s order=mesh-before-attrs view_copy=%s "
+                "item=%llu attrs=%s/%s fallback_id=%s "
+                "mesh_update=%s/%s/%s child=0x%llX "
+                "post_update=%s/%s spawn_changed=%s lifecycle_changed=%s "
+                "getter=%s.",
+                static_cast<unsigned long long>(target->localId),
+                target->definitionIndex, target->paintKit, target->seed,
+                target->wear, targetStatTrak,
+                static_cast<unsigned>(target->quality),
+                target->legacyModel ? "yes" : "no",
+                static_cast<unsigned long long>(meshGroupMask),
+                sourceLoadoutSlot,
+                earlyStage ? "early" : "render",
+                kCopyWeaponItemViewTrial ?
+                    (itemViewCopied ? "yes" : "failed") : "no",
+                static_cast<unsigned long long>(identity.itemId),
+                attributesWritten ? "yes" : "no",
+                kUseNetworkedWeaponAttributesTrial ? "networked" : "static",
+                fallbackIdentityWritten ? "yes" : "no",
+                weaponMeshUpdated ? "yes" : "no",
+                viewmodelMeshUpdated ? "yes" : "no",
+                viewmodelSceneMeshUpdated ? "yes" : "no",
+                static_cast<unsigned long long>(viewmodelSceneNode),
+                earlyStage ? "deferred" :
+                    (weaponPostUpdated ? "yes" : "no"),
+                earlyStage ? "deferred" :
+                    (viewmodelPostUpdated ? "yes" : "no"),
+                spawnChanged ? "yes" : "no",
+                lifecycleChanged ? "yes" : "no",
+                textureSeedGetterOverridden ? "yes" : "no");
+            AppendLog(message);
+        }
+
+        if (kWeaponMaterialTrialMode != WeaponMaterialTrialMode::None &&
+            g_appliedWeaponSkin.applied &&
+            !g_appliedWeaponSkin.materialTrialDone &&
+            now >= g_appliedWeaponSkin.materialTrialAt) {
+            g_appliedWeaponSkin.materialTrialDone = true;
+            const char* mode = "unknown";
+            bool refreshed = false;
+            if (kWeaponMaterialTrialMode ==
+                WeaponMaterialTrialMode::CompositeOwner) {
+                mode = "owner-only";
+                refreshed = SafeRunWeaponCompositeOwnerTrial(weapon);
+            } else if (kWeaponMaterialTrialMode ==
+                WeaponMaterialTrialMode::CompositeSet) {
+                mode = "set-only";
+                refreshed = SafeRunWeaponCompositeSetTrial(weapon);
+            } else if (kWeaponMaterialTrialMode ==
+                WeaponMaterialTrialMode::UpdateSkin) {
+                const uintptr_t trialViewmodel = ResolveHudViewModelForWeapon(
+                    entityList, pawn, weapon, stride, selection);
+                const uintptr_t trialChildScene = ResolveHudWeaponSceneNode(
+                    entityList, pawn, weapon, stride, selection);
+                if (!trialViewmodel || !trialChildScene) {
+                    mode = "skin-wait-visible-node";
+                    g_appliedWeaponSkin.materialTrialDone = false;
+                    g_appliedWeaponSkin.materialTrialAt = now + 100;
+                } else if (g_appliedWeaponSkin.materialTrialStage > 0) {
+                    mode = "skin-deferred-composite";
+                    const uint64_t trialMeshMask =
+                        target->legacyModel ? 2 : 1;
+                    const bool compositeUpdated =
+                        SafeRefreshKnifeComposite(weapon);
+                    const bool weaponMeshUpdated = SafeSetMeshGroupMask(
+                        weapon, selection, trialMeshMask);
+                    const bool viewmodelMeshUpdated = SafeSetMeshGroupMask(
+                        trialViewmodel, selection, trialMeshMask);
+                    const bool childMeshUpdated =
+                        SafeSetMeshGroupMaskOnSceneNode(
+                            trialChildScene, trialMeshMask);
+                    const bool weaponPostUpdated =
+                        SafePostDataUpdateSceneNode(weapon, selection);
+                    const bool childPostUpdated =
+                        SafePostDataUpdateSceneNodeAddress(trialChildScene);
+                    refreshed = compositeUpdated && weaponMeshUpdated &&
+                        viewmodelMeshUpdated && childMeshUpdated;
+                    char deferredMessage[352]{};
+                    StringCchPrintfA(deferredMessage,
+                        _countof(deferredMessage),
+                        "Weapon material deferred: step=%d composite=%s "
+                        "mesh=%s/%s/%s post=%s/%s.",
+                        g_appliedWeaponSkin.materialTrialStage,
+                        compositeUpdated ? "yes" : "no",
+                        weaponMeshUpdated ? "yes" : "no",
+                        viewmodelMeshUpdated ? "yes" : "no",
+                        childMeshUpdated ? "yes" : "no",
+                        weaponPostUpdated ? "yes" : "no",
+                        childPostUpdated ? "yes" : "no");
+                    AppendLog(deferredMessage);
+                    ++g_appliedWeaponSkin.materialTrialStage;
+                    if (g_appliedWeaponSkin.materialTrialStage <= 6) {
+                        g_appliedWeaponSkin.materialTrialDone = false;
+                        g_appliedWeaponSkin.materialTrialAt = now + 100;
+                    }
+                } else {
+                    mode = "skin-rebuild-visible-node";
+                    const uint64_t trialMeshMask =
+                        target->legacyModel ? 2 : 1;
+                    const bool weaponMeshUpdated = SafeSetMeshGroupMask(
+                        weapon, selection, trialMeshMask);
+                    const bool viewmodelMeshUpdated = SafeSetMeshGroupMask(
+                        trialViewmodel, selection, trialMeshMask);
+                    const bool childMeshUpdated =
+                        SafeSetMeshGroupMaskOnSceneNode(
+                            trialChildScene, trialMeshMask);
+                    const bool attributesReapplied =
+                        SafeSetItemViewSkinAttributes(itemView,
+                            target->paintKit, target->seed, target->wear);
+                    const bool subclassUpdated =
+                        SafeRunWeaponUpdateSubclassTrial(weapon);
+                    const bool compositeOwnerUpdated =
+                        SafeRunWeaponCompositeOwnerTrial(weapon);
+                    const bool compositeSetUpdated =
+                        SafeRunWeaponCompositeSetTrial(weapon);
+                    const bool skinUpdated =
+                        SafeRunWeaponUpdateSkinTrial(weapon, true);
+                    const bool weaponPostUpdated =
+                        SafePostDataUpdateSceneNode(weapon, selection);
+                    const bool childPostUpdated =
+                        SafePostDataUpdateSceneNodeAddress(trialChildScene);
+                    refreshed = weaponMeshUpdated &&
+                        viewmodelMeshUpdated && childMeshUpdated &&
+                        attributesReapplied && subclassUpdated &&
+                        compositeOwnerUpdated && compositeSetUpdated &&
+                        skinUpdated;
+                    char rebuildMessage[448]{};
+                    StringCchPrintfA(rebuildMessage,
+                        _countof(rebuildMessage),
+                        "Weapon material trial finalize: "
+                        "mode=skin-rebuild-visible-node viewmodel=0x%llX "
+                        "child=0x%llX mesh=%s/%s/%s attrs=%s "
+                        "subclass=%s owner=%s set=%s skin=%s "
+                        "post=%s/%s.",
+                        static_cast<unsigned long long>(trialViewmodel),
+                        static_cast<unsigned long long>(trialChildScene),
+                        weaponMeshUpdated ? "yes" : "no",
+                        viewmodelMeshUpdated ? "yes" : "no",
+                        childMeshUpdated ? "yes" : "no",
+                        attributesReapplied ? "yes" : "no",
+                        subclassUpdated ? "yes" : "no",
+                        compositeOwnerUpdated ? "yes" : "no",
+                        compositeSetUpdated ? "yes" : "no",
+                        skinUpdated ? "yes" : "no",
+                        weaponPostUpdated ? "yes" : "no",
+                        childPostUpdated ? "yes" : "no");
+                    AppendLog(rebuildMessage);
+                    if (refreshed) {
+                        g_appliedWeaponSkin.materialTrialStage = 1;
+                        g_appliedWeaponSkin.materialTrialDone = false;
+                        g_appliedWeaponSkin.materialTrialAt = now + 100;
+                    }
+                }
+            } else if (kWeaponMaterialTrialMode ==
+                WeaponMaterialTrialMode::UpdateSubclass) {
+                mode = "subclass-only";
+                refreshed = SafeRunWeaponUpdateSubclassTrial(weapon);
+            } else if (kWeaponMaterialTrialMode ==
+                WeaponMaterialTrialMode::RebuildSubclassThenSkin) {
+                mode = "subclass-mesh-skin-mesh";
+                const uintptr_t trialChildScene =
+                    ResolveHudWeaponSceneNode(entityList, pawn, weapon,
+                        stride, selection);
+                const uint64_t trialMeshMask =
+                    target->legacyModel ? 2 : 1;
+                const bool subclassUpdated =
+                    SafeRunWeaponUpdateSubclassTrial(weapon);
+                const bool weaponMeshBefore = SafeSetMeshGroupMask(
+                    weapon, selection, trialMeshMask);
+                const bool viewmodelMeshBefore =
+                    SafeSetMeshGroupMaskOnSceneNode(trialChildScene,
+                        trialMeshMask);
+                const bool skinUpdated = SafeRunWeaponUpdateSkinTrial(weapon);
+                const bool weaponMeshAfter = SafeSetMeshGroupMask(
+                    weapon, selection, trialMeshMask);
+                const bool viewmodelMeshAfter =
+                    SafeSetMeshGroupMaskOnSceneNode(trialChildScene,
+                        trialMeshMask);
+                refreshed = subclassUpdated && skinUpdated;
+                char finalizeMessage[384]{};
+                StringCchPrintfA(finalizeMessage,
+                    _countof(finalizeMessage),
+                    "Weapon material trial finalize: "
+                    "mode=subclass-mesh-skin-mesh child=0x%llX "
+                    "subclass=%s skin=%s mesh_before=%s/%s "
+                    "mesh_after=%s/%s.",
+                    static_cast<unsigned long long>(trialChildScene),
+                    subclassUpdated ? "yes" : "no",
+                    skinUpdated ? "yes" : "no",
+                    weaponMeshBefore ? "yes" : "no",
+                    viewmodelMeshBefore ? "yes" : "no",
+                    weaponMeshAfter ? "yes" : "no",
+                    viewmodelMeshAfter ? "yes" : "no");
+                AppendLog(finalizeMessage);
+            } else if (kWeaponMaterialTrialMode ==
+                WeaponMaterialTrialMode::RefreshModules) {
+                mode = "refresh-modules-only";
+                bool modulesChanged = false;
+                refreshed = SafeRefreshWeaponModules(
+                    weapon, itemView, modulesChanged);
+                char modulesMessage[192]{};
+                StringCchPrintfA(modulesMessage,
+                    _countof(modulesMessage),
+                    "Weapon material trial finalize: "
+                    "mode=refresh-modules-only changed=%s.",
+                    modulesChanged ? "yes" : "no");
+                AppendLog(modulesMessage);
+            } else if (kWeaponMaterialTrialMode ==
+                WeaponMaterialTrialMode::HistoricalStages) {
+                const int stage = g_appliedWeaponSkin.materialTrialStage;
+                const uintptr_t trialChildScene =
+                    ResolveHudWeaponSceneNode(entityList, pawn, weapon,
+                        stride, selection);
+                const char* stageName = "complete";
+                bool secondary = true;
+                mode = "historical-stages";
+                if (stage == 0) {
+                    stageName = "update-skin";
+                    refreshed = SafeRunWeaponUpdateSkinTrial(weapon);
+                } else if (stage == 1) {
+                    stageName = "composite-owner";
+                    refreshed = SafeRunWeaponCompositeOwnerTrial(weapon);
+                } else if (stage == 2) {
+                    stageName = "composite-set";
+                    refreshed = SafeRunWeaponCompositeSetTrial(weapon);
+                } else if (stage == 3) {
+                    stageName = "update-subclass";
+                    refreshed = SafeRunWeaponUpdateSubclassTrial(weapon);
+                } else if (stage == 4) {
+                    stageName = "post-data-update";
+                    refreshed = SafePostDataUpdateSceneNode(
+                        weapon, selection);
+                    secondary = SafePostDataUpdateSceneNodeAddress(
+                        trialChildScene);
+                }
+
+                char stagedMessage[288]{};
+                StringCchPrintfA(stagedMessage,
+                    _countof(stagedMessage),
+                    "Weapon material staged: step=%d name=%s "
+                    "weapon=0x%llX child=0x%llX result=%s/%s.",
+                    stage, stageName,
+                    static_cast<unsigned long long>(weapon),
+                    static_cast<unsigned long long>(trialChildScene),
+                    refreshed ? "yes" : "no",
+                    secondary ? "yes" : "no");
+                AppendLog(stagedMessage);
+
+                ++g_appliedWeaponSkin.materialTrialStage;
+                if (g_appliedWeaponSkin.materialTrialStage < 5) {
+                    g_appliedWeaponSkin.materialTrialDone = false;
+                    g_appliedWeaponSkin.materialTrialAt = now + 3000;
+                }
+            } else if (kWeaponMaterialTrialMode ==
+                WeaponMaterialTrialMode::UpdateSkinNoComposite) {
+                mode = "skin-no-composite";
+                refreshed = SafeRunWeaponUpdateSkinTrial(weapon, false);
+            } else if (kWeaponMaterialTrialMode ==
+                WeaponMaterialTrialMode::FallbackIdentity) {
+                mode = "fallback-identity";
+                constexpr uint32_t kFallbackItemIdHigh = 0xFFFFFFFFu;
+                const bool highWritten = SafeWrite(itemView +
+                    selection.itemIdHighOffset, kFallbackItemIdHigh);
+                refreshed = highWritten &&
+                    SafeRunWeaponUpdateSkinTrial(weapon, true);
+                char fallbackMessage[192]{};
+                StringCchPrintfA(fallbackMessage,
+                    _countof(fallbackMessage),
+                    "Weapon material trial finalize: "
+                    "mode=fallback-identity high=%s skin=%s.",
+                    highWritten ? "yes" : "no",
+                    refreshed ? "yes" : "no");
+                AppendLog(fallbackMessage);
+            } else if (kWeaponMaterialTrialMode ==
+                WeaponMaterialTrialMode::ClearReapplySkin) {
+                mode = "clear-reapply-skin";
+                const bool cleared =
+                    SafeRunWeaponCompositeOwnerTrial(weapon);
+                const bool attributesReapplied =
+                    SafeSetItemViewSkinAttributes(itemView,
+                        target->paintKit, target->seed, target->wear);
+                const bool skinUpdated =
+                    SafeRunWeaponUpdateSkinTrial(weapon, true);
+                const uintptr_t trialChildScene =
+                    ResolveHudWeaponSceneNode(entityList, pawn, weapon,
+                        stride, selection);
+                const uint64_t trialMeshMask =
+                    target->legacyModel ? 2 : 1;
+                const bool weaponMeshUpdated = SafeSetMeshGroupMask(
+                    weapon, selection, trialMeshMask);
+                const bool viewmodelMeshUpdated =
+                    SafeSetMeshGroupMaskOnSceneNode(trialChildScene,
+                        trialMeshMask);
+                refreshed = cleared && attributesReapplied && skinUpdated;
+                char reapplyMessage[320]{};
+                StringCchPrintfA(reapplyMessage,
+                    _countof(reapplyMessage),
+                    "Weapon material trial finalize: "
+                    "mode=clear-reapply-skin clear=%s attrs=%s skin=%s "
+                    "mesh=%s/%s child=0x%llX.",
+                    cleared ? "yes" : "no",
+                    attributesReapplied ? "yes" : "no",
+                    skinUpdated ? "yes" : "no",
+                    weaponMeshUpdated ? "yes" : "no",
+                    viewmodelMeshUpdated ? "yes" : "no",
+                    static_cast<unsigned long long>(trialChildScene));
+                AppendLog(reapplyMessage);
+            } else if (kWeaponMaterialTrialMode ==
+                WeaponMaterialTrialMode::ReinitializeAttributes) {
+                mode = "reinitialize-attributes";
+                const uintptr_t attributesInitializedAddress =
+                    selection.attributeManagerOffset >= 8
+                    ? weapon + selection.attributeManagerOffset - 8 : 0;
+                if (g_appliedWeaponSkin.materialTrialStage == 0) {
+                    const bool cleared =
+                        SafeRunWeaponCompositeOwnerTrial(weapon);
+                    const uint8_t uninitialized = 0;
+                    const bool invalidated = attributesInitializedAddress &&
+                        SafeWrite(attributesInitializedAddress, uninitialized);
+                    refreshed = cleared && invalidated;
+                    AppendLog(refreshed
+                        ? "Weapon attributes trial: provider invalidated."
+                        : "Weapon attributes trial: invalidation failed.");
+                    g_appliedWeaponSkin.materialTrialStage = 1;
+                    g_appliedWeaponSkin.materialTrialDone = false;
+                    g_appliedWeaponSkin.materialTrialAt = now + 750;
+                } else {
+                    uint8_t before = 0;
+                    (void)SafeRead(attributesInitializedAddress, before);
+                    const bool subclassUpdated =
+                        SafeRunWeaponUpdateSubclassTrial(weapon);
+                    const bool attributesReapplied =
+                        SafeSetItemViewSkinAttributes(itemView,
+                            target->paintKit, target->seed, target->wear);
+                    const uint8_t initialized = 1;
+                    const bool initializedWritten =
+                        SafeWrite(attributesInitializedAddress, initialized);
+                    const bool skinUpdated =
+                        SafeRunWeaponUpdateSkinTrial(weapon, true);
+                    const uintptr_t trialChildScene =
+                        ResolveHudWeaponSceneNode(entityList, pawn, weapon,
+                            stride, selection);
+                    const uint64_t trialMeshMask =
+                        target->legacyModel ? 2 : 1;
+                    const bool weaponMeshUpdated = SafeSetMeshGroupMask(
+                        weapon, selection, trialMeshMask);
+                    const bool viewmodelMeshUpdated =
+                        SafeSetMeshGroupMaskOnSceneNode(trialChildScene,
+                            trialMeshMask);
+                    refreshed = subclassUpdated && attributesReapplied &&
+                        initializedWritten && skinUpdated;
+                    char attributesMessage[352]{};
+                    StringCchPrintfA(attributesMessage,
+                        _countof(attributesMessage),
+                        "Weapon attributes trial: rebuilt before=%u "
+                        "subclass=%s attrs=%s initialized=%s skin=%s "
+                        "mesh=%s/%s.",
+                        static_cast<unsigned>(before),
+                        subclassUpdated ? "yes" : "no",
+                        attributesReapplied ? "yes" : "no",
+                        initializedWritten ? "yes" : "no",
+                        skinUpdated ? "yes" : "no",
+                        weaponMeshUpdated ? "yes" : "no",
+                        viewmodelMeshUpdated ? "yes" : "no");
+                    AppendLog(attributesMessage);
+                }
+            } else if (kWeaponMaterialTrialMode ==
+                WeaponMaterialTrialMode::NetworkedAndromedaSequence) {
+                mode = "networked-andromeda-sequence";
+                const uintptr_t trialViewmodel =
+                    ResolveHudViewModelForWeapon(entityList, pawn, weapon,
+                        stride, selection);
+                const uintptr_t trialChildScene = ResolveHudWeaponSceneNode(
+                    entityList, pawn, weapon, stride, selection);
+                if (!trialViewmodel || !trialChildScene) {
+                    g_appliedWeaponSkin.materialTrialDone = false;
+                    g_appliedWeaponSkin.materialTrialAt = now + 100;
+                } else {
+                    const uint64_t trialMeshMask =
+                        target->legacyModel ? 2 : 1;
+                    const bool attributesReapplied =
+                        SafeSetNetworkedItemViewSkinAttributes(itemView,
+                            target->paintKit, target->seed, target->wear,
+                            targetStatTrak);
+                    const bool weaponMeshBefore = SafeSetMeshGroupMask(
+                        weapon, selection, trialMeshMask);
+                    const bool viewmodelMeshBefore = SafeSetMeshGroupMask(
+                        trialViewmodel, selection, trialMeshMask);
+                    const bool childMeshBefore =
+                        SafeSetMeshGroupMaskOnSceneNode(
+                            trialChildScene, trialMeshMask);
+                    const bool subclassUpdated =
+                        SafeRunWeaponUpdateSubclassTrial(weapon);
+                    const bool compositeOwnerUpdated =
+                        SafeRunWeaponCompositeOwnerTrial(weapon);
+                    const bool compositeSetUpdated =
+                        SafeRunWeaponCompositeSetTrial(weapon);
+                    const bool skinUpdated =
+                        SafeRunWeaponUpdateSkinTrial(weapon, true);
+                    const bool weaponMeshAfter = SafeSetMeshGroupMask(
+                        weapon, selection, trialMeshMask);
+                    const bool viewmodelMeshAfter = SafeSetMeshGroupMask(
+                        trialViewmodel, selection, trialMeshMask);
+                    const bool childMeshAfter =
+                        SafeSetMeshGroupMaskOnSceneNode(
+                            trialChildScene, trialMeshMask);
+                    const bool hudCompositeUpdated =
+                        SafeRefreshKnifeComposite(trialViewmodel);
+                    const bool weaponPostUpdated =
+                        SafePostDataUpdateSceneNode(weapon, selection);
+                    const bool childPostUpdated =
+                        SafePostDataUpdateSceneNodeAddress(trialChildScene);
+                    refreshed = attributesReapplied && weaponMeshBefore &&
+                        viewmodelMeshBefore && childMeshBefore &&
+                        subclassUpdated && compositeOwnerUpdated &&
+                        compositeSetUpdated && skinUpdated &&
+                        weaponMeshAfter && viewmodelMeshAfter &&
+                        childMeshAfter && hudCompositeUpdated &&
+                        weaponPostUpdated &&
+                        childPostUpdated;
+                    char trialMessage[448]{};
+                    StringCchPrintfA(trialMessage,
+                        _countof(trialMessage),
+                        "Weapon networked Andromeda trial: attrs=%s "
+                        "mesh=%s/%s/%s->%s/%s/%s subclass=%s "
+                        "owner=%s set=%s skin=%s hud_composite=%s "
+                        "post=%s/%s "
+                        "child=0x%llX.",
+                        attributesReapplied ? "yes" : "no",
+                        weaponMeshBefore ? "yes" : "no",
+                        viewmodelMeshBefore ? "yes" : "no",
+                        childMeshBefore ? "yes" : "no",
+                        weaponMeshAfter ? "yes" : "no",
+                        viewmodelMeshAfter ? "yes" : "no",
+                        childMeshAfter ? "yes" : "no",
+                        subclassUpdated ? "yes" : "no",
+                        compositeOwnerUpdated ? "yes" : "no",
+                        compositeSetUpdated ? "yes" : "no",
+                        skinUpdated ? "yes" : "no",
+                        hudCompositeUpdated ? "yes" : "no",
+                        weaponPostUpdated ? "yes" : "no",
+                        childPostUpdated ? "yes" : "no",
+                        static_cast<unsigned long long>(trialChildScene));
+                    AppendLog(trialMessage);
+                }
+            } else if (kWeaponMaterialTrialMode ==
+                WeaponMaterialTrialMode::UpdateSkinThenHudRepair) {
+                mode = "update-skin-then-hud-repair";
+                const uintptr_t trialViewmodel =
+                    ResolveHudViewModelForWeapon(entityList, pawn, weapon,
+                        stride, selection);
+                const uintptr_t trialChildScene = ResolveHudWeaponSceneNode(
+                    entityList, pawn, weapon, stride, selection);
+                const uintptr_t trialGraphController =
+                    ResolveHudWeaponGraphController(
+                        trialChildScene, selection);
+                if (!trialViewmodel || !trialChildScene ||
+                    !trialGraphController) {
+                    g_appliedWeaponSkin.materialTrialDone = false;
+                    g_appliedWeaponSkin.materialTrialAt = now + 100;
+                } else {
+                    const uint64_t trialMeshMask =
+                        target->legacyModel ? 2 : 1;
+                    const bool attributesReapplied =
+                        SafeSetItemViewSkinAttributes(itemView,
+                            target->paintKit, target->seed, target->wear);
+                    const bool skinUpdated =
+                        SafeRunWeaponUpdateSkinTrial(weapon, true);
+                    WeaponGraphLegacyState graphBefore{};
+                    WeaponGraphLegacyState graphAfter{};
+                    const bool graphUpdated = SafeSyncWeaponGraphController(
+                        trialGraphController, weapon,
+                        graphBefore, graphAfter);
+                    const bool weaponMeshUpdated = SafeSetMeshGroupMask(
+                        weapon, selection, trialMeshMask);
+                    const bool viewmodelMeshUpdated = SafeSetMeshGroupMask(
+                        trialViewmodel, selection, trialMeshMask);
+                    const bool childMeshUpdated =
+                        SafeSetMeshGroupMaskOnSceneNode(
+                            trialChildScene, trialMeshMask);
+                    const bool hudCompositeUpdated =
+                        SafeRefreshKnifeComposite(trialViewmodel);
+                    const bool weaponPostUpdated =
+                        SafePostDataUpdateSceneNode(weapon, selection);
+                    const bool childPostUpdated =
+                        SafePostDataUpdateSceneNodeAddress(trialChildScene);
+                    refreshed = attributesReapplied && skinUpdated &&
+                        graphUpdated && weaponMeshUpdated &&
+                        viewmodelMeshUpdated && childMeshUpdated &&
+                        hudCompositeUpdated && weaponPostUpdated &&
+                        childPostUpdated;
+                    char trialMessage[512]{};
+                    StringCchPrintfA(trialMessage,
+                        _countof(trialMessage),
+                        "Weapon update-skin/HUD repair trial: attrs=%s "
+                        "skin=%s graph=%s legacy=%s->%s "
+                        "mesh=%s/%s/%s hud_composite=%s post=%s/%s "
+                        "child=0x%llX.",
+                        attributesReapplied ? "yes" : "no",
+                        skinUpdated ? "yes" : "no",
+                        graphUpdated ? "yes" : "no",
+                        graphBefore.legacy ? "yes" : "no",
+                        graphAfter.legacy ? "yes" : "no",
+                        weaponMeshUpdated ? "yes" : "no",
+                        viewmodelMeshUpdated ? "yes" : "no",
+                        childMeshUpdated ? "yes" : "no",
+                        hudCompositeUpdated ? "yes" : "no",
+                        weaponPostUpdated ? "yes" : "no",
+                        childPostUpdated ? "yes" : "no",
+                        static_cast<unsigned long long>(trialChildScene));
+                    AppendLog(trialMessage);
+                }
+            } else if (kWeaponMaterialTrialMode ==
+                WeaponMaterialTrialMode::GraphControllerThenSkin) {
+                mode = "graph-controller-then-skin";
+                const uintptr_t trialViewmodel =
+                    ResolveHudViewModelForWeapon(entityList, pawn, weapon,
+                        stride, selection);
+                const uintptr_t trialChildScene = ResolveHudWeaponSceneNode(
+                    entityList, pawn, weapon, stride, selection);
+                const uintptr_t trialGraphController =
+                    ResolveHudWeaponGraphController(
+                        trialChildScene, selection);
+                if (!trialViewmodel || !trialChildScene ||
+                    !trialGraphController) {
+                    g_appliedWeaponSkin.materialTrialDone = false;
+                    g_appliedWeaponSkin.materialTrialAt = now + 100;
+                } else {
+                    const uint64_t trialMeshMask =
+                        target->legacyModel ? 2 : 1;
+                    const bool attributesReapplied =
+                        SafeSetItemViewSkinAttributes(itemView,
+                            target->paintKit, target->seed, target->wear);
+                    WeaponGraphLegacyState graphBefore{};
+                    WeaponGraphLegacyState graphAfter{};
+                    const bool graphUpdated = SafeSyncWeaponGraphController(
+                        trialGraphController, weapon,
+                        graphBefore, graphAfter);
+                    const bool weaponMeshBefore = SafeSetMeshGroupMask(
+                        weapon, selection, trialMeshMask);
+                    const bool viewmodelMeshBefore = SafeSetMeshGroupMask(
+                        trialViewmodel, selection, trialMeshMask);
+                    const bool childMeshBefore =
+                        SafeSetMeshGroupMaskOnSceneNode(
+                            trialChildScene, trialMeshMask);
+                    const bool subclassUpdated =
+                        SafeRunWeaponUpdateSubclassTrial(weapon);
+                    const bool compositeOwnerUpdated =
+                        SafeRunWeaponCompositeOwnerTrial(weapon);
+                    const bool compositeSetUpdated =
+                        SafeRunWeaponCompositeSetTrial(weapon);
+                    const bool skinUpdated =
+                        SafeRunWeaponUpdateSkinTrial(weapon, true);
+                    const bool weaponMeshAfter = SafeSetMeshGroupMask(
+                        weapon, selection, trialMeshMask);
+                    const bool viewmodelMeshAfter = SafeSetMeshGroupMask(
+                        trialViewmodel, selection, trialMeshMask);
+                    const bool childMeshAfter =
+                        SafeSetMeshGroupMaskOnSceneNode(
+                            trialChildScene, trialMeshMask);
+                    const bool weaponPostUpdated =
+                        SafePostDataUpdateSceneNode(weapon, selection);
+                    const bool childPostUpdated =
+                        SafePostDataUpdateSceneNodeAddress(trialChildScene);
+                    refreshed = attributesReapplied && graphUpdated &&
+                        weaponMeshBefore && viewmodelMeshBefore &&
+                        childMeshBefore && subclassUpdated &&
+                        compositeOwnerUpdated && compositeSetUpdated &&
+                        skinUpdated && weaponMeshAfter &&
+                        viewmodelMeshAfter && childMeshAfter;
+                    char graphMessage[640]{};
+                    StringCchPrintfA(graphMessage,
+                        _countof(graphMessage),
+                        "Weapon graph trial: viewmodel=0x%llX "
+                        "controller=0x%llX graph=%s "
+                        "before=%s/%d/%s/value=0x%llX "
+                        "after=%s/%d/%s/value=0x%llX "
+                        "attrs=%s mesh=%s/%s/%s->%s/%s/%s "
+                        "subclass=%s owner=%s set=%s skin=%s post=%s/%s.",
+                        static_cast<unsigned long long>(trialViewmodel),
+                        static_cast<unsigned long long>(
+                            graphAfter.controller),
+                        graphUpdated ? "yes" : "no",
+                        graphBefore.readable ? "ready" : "missing",
+                        static_cast<int>(graphBefore.index),
+                        graphBefore.legacy ? "legacy" : "modern",
+                        static_cast<unsigned long long>(graphBefore.value),
+                        graphAfter.readable ? "ready" : "missing",
+                        static_cast<int>(graphAfter.index),
+                        graphAfter.legacy ? "legacy" : "modern",
+                        static_cast<unsigned long long>(graphAfter.value),
+                        attributesReapplied ? "yes" : "no",
+                        weaponMeshBefore ? "yes" : "no",
+                        viewmodelMeshBefore ? "yes" : "no",
+                        childMeshBefore ? "yes" : "no",
+                        weaponMeshAfter ? "yes" : "no",
+                        viewmodelMeshAfter ? "yes" : "no",
+                        childMeshAfter ? "yes" : "no",
+                        subclassUpdated ? "yes" : "no",
+                        compositeOwnerUpdated ? "yes" : "no",
+                        compositeSetUpdated ? "yes" : "no",
+                        skinUpdated ? "yes" : "no",
+                        weaponPostUpdated ? "yes" : "no",
+                        childPostUpdated ? "yes" : "no");
+                    AppendLog(graphMessage);
+                }
+            }
+            char message[224]{};
+            StringCchPrintfA(message, _countof(message),
+                "Weapon material trial: mode=%s weapon=0x%llX "
+                "owner=0x%llX refresh=%s.",
+                mode,
+                static_cast<unsigned long long>(weapon),
+                static_cast<unsigned long long>(weapon +
+                    g_compositeMaterialOwnerOffset),
+                refreshed ? "yes" : "no");
+            AppendLog(message);
+        }
+
+        const bool runtimeMaintenanceNeeded = drifted ||
+            g_appliedWeaponSkin.sceneUpdatePending ||
+            g_appliedWeaponSkin.materialRefreshPending;
+        if (!earlyStage && kUseNetworkedWeaponAttributesTrial &&
+            g_appliedWeaponSkin.applied && runtimeMaintenanceNeeded) {
+            constexpr uint32_t kFallbackItemIdPart = 0xFFFFFFFFu;
+            const uint64_t meshGroupMask = target->legacyModel ? 2 : 1;
+            const uintptr_t viewmodel = ResolveHudViewModelForWeapon(
+                entityList, pawn, weapon, stride, selection);
+            const uintptr_t viewmodelSceneNode = ResolveHudWeaponSceneNode(
+                entityList, pawn, weapon, stride, selection);
+            (void)SafeWrite(itemView + selection.itemIdHighOffset,
+                kFallbackItemIdPart);
+            (void)SafeWrite(itemView + selection.itemIdLowOffset,
+                kFallbackItemIdPart);
+            if (kClearStaticWeaponAttributesTrial)
+                (void)SafeClearStaticItemViewAttributes(itemView);
+            (void)SafeSetNetworkedItemViewSkinAttributes(itemView,
+                target->paintKit, target->seed, target->wear,
+                targetStatTrak);
+            (void)SafeSetMeshGroupMask(weapon, selection, meshGroupMask);
+            if (viewmodel)
+                (void)SafeSetMeshGroupMask(
+                    viewmodel, selection, meshGroupMask);
+            if (viewmodelSceneNode)
+                (void)SafeSetMeshGroupMaskOnSceneNode(
+                    viewmodelSceneNode, meshGroupMask);
+        }
+
+        if (!earlyStage && g_appliedWeaponSkin.materialRefreshPending &&
+            now >= g_appliedWeaponSkin.materialRefreshAt) {
+            const uintptr_t viewmodel = ResolveHudViewModelForWeapon(
+                entityList, pawn, weapon, stride, selection);
+            const uintptr_t viewmodelSceneNode = ResolveHudWeaponSceneNode(
+                entityList, pawn, weapon, stride, selection);
+            const uint64_t meshGroupMask = target->legacyModel ? 2 : 1;
+            const bool getterReady = RegisterWeaponTextureSeedOverride(
+                    itemView, selection.itemIdOffset, identity.itemId,
+                    target->paintKit, target->seed, true) &&
+                InstallItemViewGetTextureSeedOverride(
+                    reinterpret_cast<void*>(itemView));
+            const bool materialsCleared = getterReady &&
+                SafeRunWeaponCompositeOwnerTrial(weapon);
+            const bool attributesReapplied = materialsCleared &&
+                SafeSetItemViewSkinAttributes(itemView,
+                    target->paintKit, target->seed, target->wear,
+                    targetStatTrak);
+            const bool skinUpdated = attributesReapplied &&
+                SafeRunWeaponUpdateSkinTrial(weapon, true);
+            bool modulesChanged = false;
+            const bool modulesRefreshed = targetStatTrak < 0 ||
+                (skinUpdated && SafeRefreshWeaponModules(
+                    weapon, itemView, modulesChanged));
+            const bool weaponMeshUpdated = SafeSetMeshGroupMask(
+                weapon, selection, meshGroupMask);
+            const bool viewmodelMeshUpdated = viewmodel &&
+                SafeSetMeshGroupMask(
+                    viewmodel, selection, meshGroupMask);
+            const bool childMeshUpdated = viewmodelSceneNode &&
+                SafeSetMeshGroupMaskOnSceneNode(
+                    viewmodelSceneNode, meshGroupMask);
+            const bool weaponPostUpdated = SafePostDataUpdateSceneNode(
+                weapon, selection);
+            const bool viewmodelPostUpdated = viewmodel &&
+                SafePostDataUpdateSceneNode(viewmodel, selection);
+            const bool refreshed = getterReady && materialsCleared &&
+                attributesReapplied && skinUpdated && modulesRefreshed &&
+                weaponMeshUpdated;
+            g_appliedWeaponSkin.materialRefreshPending = !refreshed;
+            g_appliedWeaponSkin.materialRefreshAt = now + 100;
+
+            char message[448]{};
+            StringCchPrintfA(message, _countof(message),
+                "Weapon skin material refresh: weapon=0x%llX "
+                "getter=%s clear=%s attrs=%s skin=%s modules=%s/%s "
+                "mesh=%s/%s/%s "
+                "post=%s/%s pending=%s.",
+                static_cast<unsigned long long>(weapon),
+                getterReady ? "yes" : "no",
+                materialsCleared ? "yes" : "no",
+                attributesReapplied ? "yes" : "no",
+                skinUpdated ? "yes" : "no",
+                modulesRefreshed ? "yes" : "no",
+                modulesChanged ? "changed" : "stable",
+                weaponMeshUpdated ? "yes" : "no",
+                viewmodelMeshUpdated ? "yes" : "no",
+                childMeshUpdated ? "yes" : "no",
+                weaponPostUpdated ? "yes" : "no",
+                viewmodelPostUpdated ? "yes" : "no",
+                g_appliedWeaponSkin.materialRefreshPending
+                    ? "yes" : "no");
+            AppendLog(message);
+        }
+
+        if (!earlyStage && g_appliedWeaponSkin.sceneUpdatePending) {
+            const uintptr_t viewmodel = ResolveHudViewModelForWeapon(
+                entityList, pawn, weapon, stride, selection);
+            const uintptr_t viewmodelSceneNode = ResolveHudWeaponSceneNode(
+                entityList, pawn, weapon, stride, selection);
+            const uint64_t meshGroupMask = kForceModernWeaponMeshTrial
+                ? 1 : (target->legacyModel ? 2 : 1);
+            const bool weaponMeshUpdated = SafeSetMeshGroupMask(
+                weapon, selection, meshGroupMask);
+            const bool viewmodelMeshUpdated = viewmodel &&
+                SafeSetMeshGroupMask(viewmodel, selection, meshGroupMask);
+            const bool viewmodelSceneMeshUpdated = viewmodelSceneNode &&
+                SafeSetMeshGroupMaskOnSceneNode(
+                    viewmodelSceneNode, meshGroupMask);
+            const bool weaponPostUpdated = SafePostDataUpdateSceneNode(
+                weapon, selection);
+            const bool viewmodelPostUpdated = viewmodel &&
+                SafePostDataUpdateSceneNode(viewmodel, selection);
+            g_appliedWeaponSkin.sceneUpdatePending =
+                !viewmodel || !viewmodelSceneNode;
+
+            char message[256]{};
+            StringCchPrintfA(message, _countof(message),
+                "Weapon skin: phase=finalize weapon=0x%llX "
+                "mesh_update=%s/%s/%s child=0x%llX "
+                "post_update=%s/%s.",
+                static_cast<unsigned long long>(weapon),
+                weaponMeshUpdated ? "yes" : "no",
+                viewmodelMeshUpdated ? "yes" : "no",
+                viewmodelSceneMeshUpdated ? "yes" : "no",
+                static_cast<unsigned long long>(viewmodelSceneNode),
+                weaponPostUpdated ? "yes" : "no",
+                viewmodelPostUpdated ? "yes" : "no");
+            AppendLog(message);
+        }
+
+        if (!g_appliedWeaponSkin.hudRefreshed &&
+            now >= g_appliedWeaponSkin.hudRefreshAt) {
+            ++g_appliedWeaponSkin.hudRefreshAttempts;
+            g_appliedWeaponSkin.hudRefreshed = RefreshWeaponHudCache(
+                itemView, "Weapon skin");
+            if (!g_appliedWeaponSkin.hudRefreshed) {
+                g_appliedWeaponSkin.hudRefreshAt = now + 250;
+                if (g_appliedWeaponSkin.hudRefreshAttempts >= 5)
+                    g_appliedWeaponSkin.hudRefreshed = true;
+            }
+        }
+        g_appliedWeaponSkin.nextUpdateAt = now + 100;
     }
 
     void RestoreAppliedKnife(
@@ -4660,6 +7462,7 @@ namespace {
             uint64_t itemId = 0;
         };
         static ObservedLoadout observed[2]{};
+        static ObservedLoadout observedWeapons[2][54]{};
         static ObservedLoadout observedMusicKit{};
         static LONG observedEpoch = -1;
         static ULONGLONG nextPollAt = 0;
@@ -4670,6 +7473,7 @@ namespace {
         if (observedEpoch != currentEpoch) {
             observed[0] = {};
             observed[1] = {};
+            ZeroMemory(observedWeapons, sizeof(observedWeapons));
             observedMusicKit = {};
             observedEpoch = currentEpoch;
         }
@@ -4685,6 +7489,7 @@ namespace {
             !selection.enabled || !selection.itemIdOffset) {
             observed[0] = {};
             observed[1] = {};
+            ZeroMemory(observedWeapons, sizeof(observedWeapons));
             observedMusicKit = {};
             return;
         }
@@ -4803,6 +7608,70 @@ namespace {
                 static_cast<unsigned long long>(previousItemId),
                 static_cast<unsigned long long>(nativeSelection.itemId));
             AppendLog(message);
+        }
+
+        // Weapon slots are definition-specific. Observe the native loadout
+        // instead of assigning every gun to one synthetic slot, and mirror
+        // only selections the player already made through CS2.
+        for (int teamIndex = 0; teamIndex < 2; ++teamIndex) {
+            const int gameTeam = gameTeams[teamIndex];
+            const int protocolTeam = teamIndex + 1;
+            for (int slot = 1; slot <= 53; ++slot) {
+                if (slot == kGloveLoadoutSlot) continue;
+                InventorySocacheLoadoutSelection nativeSelection{};
+                if (!ReadInventorySocacheLoadoutSelection(gameTeam, slot,
+                        selection.itemIdOffset, nativeSelection))
+                    continue;
+
+                ObservedLoadout& weaponObservation =
+                    observedWeapons[teamIndex][slot];
+                if (!weaponObservation.initialized) {
+                    weaponObservation.initialized = true;
+                    weaponObservation.itemId = nativeSelection.itemId;
+                    continue;
+                }
+                if (weaponObservation.itemId == nativeSelection.itemId)
+                    continue;
+                const uint64_t previousItemId = weaponObservation.itemId;
+                weaponObservation.itemId = nativeSelection.itemId;
+                if (!nativeSelection.generated ||
+                    nativeSelection.localId == 0)
+                    continue;
+
+                const InventorySnapshotSelection::WeaponSkinCollectionItem*
+                    weaponItem = nullptr;
+                for (int itemIndex = 0;
+                    itemIndex < selection.weaponSkinItemCount; ++itemIndex) {
+                    if (selection.weaponSkinItems[itemIndex].localId ==
+                        nativeSelection.localId) {
+                        weaponItem = &selection.weaponSkinItems[itemIndex];
+                        break;
+                    }
+                }
+                if (!weaponItem ||
+                    (GetWeaponDefinitionProtocolTeam(
+                        weaponItem->definitionIndex) != 3 &&
+                        GetWeaponDefinitionProtocolTeam(
+                            weaponItem->definitionIndex) != protocolTeam) ||
+                    (weaponItem->equippedTeam & protocolTeam) != 0)
+                    continue;
+
+                NativeLoadoutCommand command{};
+                command.type = NativeLoadoutCommandType::Equip;
+                command.localId = nativeSelection.localId;
+                command.team = protocolTeam;
+                QueueNativeLoadoutCommand(command);
+                char message[224]{};
+                StringCchPrintfA(message, _countof(message),
+                    "Native weapon loadout: equip queued team=%d slot=%d "
+                    "local=%llu previous=%llu current=%llu.",
+                    protocolTeam, slot,
+                    static_cast<unsigned long long>(command.localId),
+                    static_cast<unsigned long long>(previousItemId),
+                    static_cast<unsigned long long>(nativeSelection.itemId));
+                AppendLog(message);
+                return;
+            }
         }
     }
 
@@ -6280,12 +9149,23 @@ namespace {
         const GetControllerIdFn getControllerId =
             GetVirtualFunction<GetControllerIdFn>(event, 15);
         const SetStringFn setString = GetVirtualFunction<SetStringFn>(event, 24);
-        if (!getName || !getControllerId) return;
+        if (!getName) return;
 
         const char* eventName = getName(event);
+        if (eventName && (strcmp(eventName, "round_prestart") == 0 ||
+            strcmp(eventName, "round_start") == 0)) {
+            const uint32_t generation =
+                g_weaponSkinLifecycleGeneration.fetch_add(1) + 1;
+            char message[160]{};
+            StringCchPrintfA(message, _countof(message),
+                "Weapon skin lifecycle: event=%s generation=%u.",
+                eventName, generation);
+            AppendLog(message);
+        }
         if (!eventName || (strcmp(eventName, "player_death") != 0 &&
             strcmp(eventName, "round_mvp") != 0))
             return;
+        if (!getControllerId) return;
         const bool isRoundMvp = strcmp(eventName, "round_mvp") == 0;
 
         InventorySnapshotSelection selection;
@@ -6325,12 +9205,7 @@ namespace {
             return;
         }
 
-        if (!g_appliedKnife.subclassApplied || !getString || !setString)
-            return;
-        const KnifeModel* appliedKnife = FindKnifeModel(
-            g_appliedKnife.definitionIndex);
-        if (!appliedKnife || !appliedKnife->eventName) return;
-
+        if (!getString) return;
         EventBuffer attackerBuffer{};
         attackerBuffer.name = "attacker";
         int attackerControllerId = -1;
@@ -6348,9 +9223,10 @@ namespace {
         const StringToken weaponFauxItemIdToken =
             MakeStringToken("weapon_fauxitemid");
         const char* weaponName = getString(event, weaponToken, "");
-        if (!weaponName || (strcmp(weaponName, "knife") != 0 &&
-            strcmp(weaponName, "knife_t") != 0))
-            return;
+        const char* weaponItemId = getString(
+            event, weaponItemIdToken, "0");
+        const char* weaponFauxItemId = getString(
+            event, weaponFauxItemIdToken, "0");
 
         int localTeam = 0;
         EventBuffer victimBuffer{};
@@ -6367,6 +9243,72 @@ namespace {
             SafeRead(victimController + selection.teamNumberOffset,
                 victimTeam) && localTeam >= 2 && localTeam <= 3 &&
             victimTeam >= 2 && victimTeam <= 3 && localTeam != victimTeam;
+
+        if (validEnemyKill) {
+            uint64_t eventItemId = 0;
+            if (weaponItemId && *weaponItemId) {
+                char* parseEnd = nullptr;
+                eventItemId = strtoull(weaponItemId, &parseEnd, 10);
+                if (parseEnd == weaponItemId) eventItemId = 0;
+            }
+            uint64_t weaponLocalId = 0;
+            const char* resolution = "none";
+            if (eventItemId && ResolveInventorySocacheGeneratedLocalId(
+                    eventItemId, weaponLocalId)) {
+                resolution = "itemid";
+            } else if (g_appliedWeaponSkin.applied && weaponName) {
+                const char* expectedWeaponName = GetWeaponKillEventName(
+                    g_appliedWeaponSkin.definitionIndex);
+                if (expectedWeaponName &&
+                    strcmp(weaponName, expectedWeaponName) == 0) {
+                    weaponLocalId = g_appliedWeaponSkin.localId;
+                    resolution = "active-definition";
+                }
+            }
+
+            const auto* weaponItem = FindWeaponSkinCollectionItem(
+                selection, weaponLocalId);
+            const int protocolTeam = localTeam == kTerroristTeam ? 1 : 2;
+            if (weaponItem && weaponItem->statTrak &&
+                (weaponItem->equippedTeam & protocolTeam) != 0) {
+                QueueStatTrakIncrement(
+                    weaponItem->localId, weaponItem->statTrakCount);
+                char message[256]{};
+                StringCchPrintfA(message, _countof(message),
+                    "StatTrak event: weapon kill local=%llu def=%d "
+                    "count=%d weapon=%s itemid=%llu resolution=%s.",
+                    static_cast<unsigned long long>(weaponItem->localId),
+                    weaponItem->definitionIndex,
+                    weaponItem->statTrakCount,
+                    weaponName ? weaponName : "",
+                    static_cast<unsigned long long>(eventItemId),
+                    resolution);
+                AppendLog(message);
+            } else if (g_weaponStatTrakEventLogs.fetch_add(1) < 16) {
+                char message[256]{};
+                StringCchPrintfA(message, _countof(message),
+                    "StatTrak event probe: weapon=%s itemid=%llu "
+                    "local=%llu resolved=%s configured=%s team_ok=%s.",
+                    weaponName ? weaponName : "",
+                    static_cast<unsigned long long>(eventItemId),
+                    static_cast<unsigned long long>(weaponLocalId),
+                    resolution,
+                    weaponItem ? "yes" : "no",
+                    weaponItem &&
+                        (weaponItem->equippedTeam & protocolTeam) != 0
+                        ? "yes" : "no");
+                AppendLog(message);
+            }
+        }
+
+        if (!g_appliedKnife.subclassApplied || !setString || !weaponName ||
+            (strcmp(weaponName, "knife") != 0 &&
+                strcmp(weaponName, "knife_t") != 0))
+            return;
+        const KnifeModel* appliedKnife = FindKnifeModel(
+            g_appliedKnife.definitionIndex);
+        if (!appliedKnife || !appliedKnife->eventName) return;
+
         if (validEnemyKill) {
             const uint64_t localId = localTeam == 2
                 ? selection.terroristKnife
@@ -6383,10 +9325,6 @@ namespace {
             }
         }
 
-        const char* weaponItemId = getString(
-            event, weaponItemIdToken, "0");
-        const char* weaponFauxItemId = getString(
-            event, weaponFauxItemIdToken, "0");
         char fauxItemId[32]{};
         const std::uint64_t fauxValue = 0xFFFFFFFF00000000ull |
             static_cast<std::uint32_t>(appliedKnife->definitionIndex);
@@ -6449,17 +9387,26 @@ namespace {
             &g_inventoryEventListener, "round_mvp", false);
         const bool mvpFound = mvpAdded && findListener(g_eventManager,
             &g_inventoryEventListener, "round_mvp");
+        const bool roundPrestartAdded = addListener(g_eventManager,
+            &g_inventoryEventListener, "round_prestart", false);
+        const bool roundStartAdded = addListener(g_eventManager,
+            &g_inventoryEventListener, "round_start", false);
         if (!deathFound) {
-            if (deathAdded || mvpAdded)
+            if (deathAdded || mvpAdded || roundPrestartAdded || roundStartAdded)
                 removeListener(g_eventManager, &g_inventoryEventListener);
             g_eventManager = nullptr;
             AppendLog("Killfeed events: listener no instalado.");
             return false;
         }
         g_killFeedListenerInstalled = true;
-        AppendLog(mvpFound
-            ? "Inventory events: player_death y round_mvp instalados."
-            : "Inventory events: player_death instalado; round_mvp depende del pre-hook.");
+        char listenerMessage[224]{};
+        StringCchPrintfA(listenerMessage, _countof(listenerMessage),
+            "Inventory events: death=yes mvp=%s round_prestart=%s "
+            "round_start=%s.",
+            mvpFound ? "yes" : "pre-hook",
+            roundPrestartAdded ? "yes" : "pre-hook",
+            roundStartAdded ? "yes" : "pre-hook");
+        AppendLog(listenerMessage);
 
         void** managerVtable = nullptr;
         void* originalFireEvent = nullptr;
@@ -6773,7 +9720,8 @@ namespace {
             &clientInterface);
         const bool engineReady = ProbeInterface(
             L"engine2.dll", "Source2EngineToClient001",
-            "Source2EngineToClient001: OK", "Source2EngineToClient001: FAIL");
+            "Source2EngineToClient001: OK", "Source2EngineToClient001: FAIL",
+            nullptr);
         void* panoramaInterface = nullptr;
         const bool panoramaReady = ProbeInterface(
             L"panorama.dll", "PanoramaUIEngine001",
@@ -6788,7 +9736,6 @@ namespace {
         HANDLE readyEvent = CreateEventW(nullptr, TRUE, FALSE, kReadyEventName);
         if (readyEvent && clientReady && engineReady && panoramaReady)
             SetEvent(readyEvent);
-
         const bool frameStageHooked = clientReady &&
             InstallFrameStageDiagnostic(clientInterface);
         if (!frameStageHooked)
@@ -6843,11 +9790,19 @@ namespace {
                     uint64_t localId = 0;
                     if (ResolveInventorySocacheGeneratedLocalId(
                             panoramaCommand.localId, localId)) {
-                        panoramaCommand.type =
-                            PanoramaInventoryCommandType::Equip;
-                        panoramaCommand.localId = localId;
-                        AppendLog(
-                            "Panorama native equip: Item ID resuelto a Local ID.");
+                        InventorySnapshotSelection selection{};
+                        if (ReadPublishedInventorySelection(selection) &&
+                            UsesNativeTeamLoadoutObserver(selection, localId)) {
+                            panoramaCommand = {};
+                            AppendLog("Panorama native equip: arma/cuchillo "
+                                "delegado al observador por equipo.");
+                        } else {
+                            panoramaCommand.type =
+                                PanoramaInventoryCommandType::Equip;
+                            panoramaCommand.localId = localId;
+                            AppendLog("Panorama native equip: Item ID "
+                                "resuelto a Local ID.");
+                        }
                     } else {
                         AppendLog(
                             "Panorama native equip: articulo ajeno ignorado.");
@@ -6897,6 +9852,7 @@ namespace {
         const ULONGLONG restoreDeadline = GetTickCount64() + 2000;
         while ((InterlockedCompareExchange(
             &g_agentModelApplied, 0, 0) != 0 ||
+            InterlockedCompareExchange(&g_weaponSkinApplied, 0, 0) != 0 ||
             InterlockedCompareExchange(&g_knifeModelApplied, 0, 0) != 0 ||
             InterlockedCompareExchange(&g_gloveModelApplied, 0, 0) != 0) &&
             GetTickCount64() < restoreDeadline)
@@ -6906,6 +9862,7 @@ namespace {
         while (IsPanoramaProbeMounted() &&
             GetTickCount64() < panoramaDestroyDeadline)
             Sleep(10);
+        RemoveWeaponMaterialDiagnostics();
         RemoveGlovePawnUpdateDiagnostic();
         RemoveGloveProcessDiagnostic();
         RemoveGloveRenderDiagnostic();

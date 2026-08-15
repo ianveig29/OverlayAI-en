@@ -1,8 +1,3 @@
-// ============================================================
-// SmokeColor.cpp
-// Allows changing the color of smoke grenades in the game.
-// ============================================================
-
 #include "SmokeColor.h"
 
 #include "Entity.h"

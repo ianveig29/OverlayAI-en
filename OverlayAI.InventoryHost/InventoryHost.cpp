@@ -1,8 +1,3 @@
-// ============================================================
-// InventoryHost.cpp
-// Inventory host process. Runs as a separate process to handle items without interfering with the overlay.
-// ============================================================
-
 #include "InventoryIpcServer.h"
 #include "InventoryProtocol.h"
 #include "PanoramaBridgeContract.h"

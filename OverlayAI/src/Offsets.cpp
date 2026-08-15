@@ -1,8 +1,3 @@
-// ============================================================
-// Offsets.cpp
-// Contains memory offsets for the CS2 game. These addresses change when the game updates and are used to read game data from memory.
-// ============================================================
-
 #include "Offsets.h"
 #include <cstdio>
 #include <iostream>

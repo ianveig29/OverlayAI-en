@@ -1,8 +1,3 @@
-// ============================================================
-// InventoryCatalog.cpp
-// Game item catalog. Contains the list of all skins, knives and items available.
-// ============================================================
-
 #include "InventoryCatalog.h"
 #include "Localization.h"
 
@@ -33,6 +28,33 @@ namespace {
             if (!*right) return true;
         }
         return false;
+    }
+
+    int GetWeaponDefinitionTeam(int definitionIndex) {
+        switch (definitionIndex) {
+        case 4:  // Glock-18
+        case 7:  // AK-47
+        case 11: // G3SG1
+        case 13: // Galil AR
+        case 17: // MAC-10
+        case 29: // Sawed-Off
+        case 30: // Tec-9
+        case 39: // SG 553
+            return LocalInventoryTeamTerrorist;
+        case 3:  // Five-SeveN
+        case 8:  // AUG
+        case 10: // FAMAS
+        case 16: // M4A4
+        case 27: // MAG-7
+        case 32: // P2000
+        case 34: // MP9
+        case 38: // SCAR-20
+        case 60: // M4A1-S
+        case 61: // USP-S
+            return LocalInventoryTeamCounterTerrorist;
+        default:
+            return LocalInventoryTeamBoth;
+        }
     }
 }
 
@@ -88,7 +110,8 @@ bool IsInventoryItemExternallyApplicable(int type) {
 }
 
 bool IsInventoryItemLoadoutSupported(int type) {
-    return type == LocalInventoryMusicKit || type == LocalInventoryKnife ||
+    return type == LocalInventoryMusicKit ||
+        type == LocalInventoryWeaponSkin || type == LocalInventoryKnife ||
         type == LocalInventoryGloves || type == LocalInventoryAgent;
 }
 
@@ -117,6 +140,8 @@ const char* GetInventoryCatalogItemVariantName(
 }
 
 int GetInventoryCatalogItemTeam(const InventoryCatalogItem& item) {
+    if (item.type == LocalInventoryWeaponSkin)
+        return GetWeaponDefinitionTeam(item.definitionIndex);
     if (item.type != LocalInventoryAgent) return LocalInventoryTeamBoth;
     if (strcmp(item.group, "Terrorist") == 0)
         return LocalInventoryTeamTerrorist;

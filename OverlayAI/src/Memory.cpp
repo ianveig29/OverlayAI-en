@@ -1,8 +1,3 @@
-// ============================================================
-// Memory.cpp
-// Functions to read and write the game process memory. This is the foundation for everything: reading health, positions, weapons, etc.
-// ============================================================
-
 #include "Memory.h"
 
 ProcessMemory mem;
