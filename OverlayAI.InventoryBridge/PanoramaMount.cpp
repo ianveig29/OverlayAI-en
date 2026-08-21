@@ -752,13 +752,22 @@ namespace {
         return address >= base && address < base + size;
     }
 
+    inline bool IsValidUserPointer(const void* address, SIZE_T size = 1) noexcept {
+        const uintptr_t ptr = reinterpret_cast<uintptr_t>(address);
+        return ptr >= 0x10000 && ptr <= (0x7FFFFFFEFFFFull - size);
+    }
+
     bool ReadPointer(uintptr_t address, uintptr_t& value) noexcept {
         value = 0;
-        SIZE_T bytesRead = 0;
-        return address && ReadProcessMemory(
-            GetCurrentProcess(), reinterpret_cast<const void*>(address),
-            &value, sizeof(value), &bytesRead) != FALSE &&
-            bytesRead == sizeof(value);
+        if (!IsValidUserPointer(reinterpret_cast<const void*>(address), sizeof(value)))
+            return false;
+        __try {
+            CopyMemory(&value, reinterpret_cast<const void*>(address), sizeof(value));
+            return true;
+        } __except (EXCEPTION_EXECUTE_HANDLER) {
+            value = 0;
+            return false;
+        }
     }
 
     bool HasExecutableFirstMethod(uintptr_t object, HMODULE vtableModule) noexcept {
@@ -831,20 +840,28 @@ namespace {
 
     uintptr_t ResolveRelative(uintptr_t instruction, SIZE_T offset) noexcept {
         std::int32_t displacement = 0;
-        SIZE_T bytesRead = 0;
         const uintptr_t address = instruction + offset;
-        if (!ReadProcessMemory(GetCurrentProcess(),
-            reinterpret_cast<const void*>(address), &displacement,
-            sizeof(displacement), &bytesRead) || bytesRead != sizeof(displacement))
+        if (!IsValidUserPointer(reinterpret_cast<const void*>(address), sizeof(displacement)))
             return 0;
-        return address + sizeof(displacement) + displacement;
+        __try {
+            CopyMemory(&displacement, reinterpret_cast<const void*>(address), sizeof(displacement));
+            return address + sizeof(displacement) + displacement;
+        } __except (EXCEPTION_EXECUTE_HANDLER) {
+            return 0;
+        }
     }
 
     bool ReadInteger32(uintptr_t address, std::int32_t& value) noexcept {
-        SIZE_T bytesRead = 0;
-        return address && ReadProcessMemory(GetCurrentProcess(),
-            reinterpret_cast<const void*>(address), &value, sizeof(value),
-            &bytesRead) != FALSE && bytesRead == sizeof(value);
+        value = 0;
+        if (!IsValidUserPointer(reinterpret_cast<const void*>(address), sizeof(value)))
+            return false;
+        __try {
+            CopyMemory(&value, reinterpret_cast<const void*>(address), sizeof(value));
+            return true;
+        } __except (EXCEPTION_EXECUTE_HANDLER) {
+            value = 0;
+            return false;
+        }
     }
 
     const char* FindJsonValue(const char* json, const char* key) noexcept {

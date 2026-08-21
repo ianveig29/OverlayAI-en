@@ -300,8 +300,11 @@ void RenderEspMenu() {
     ImGui::SetNextWindowSize(ImVec2(540, 700), ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowBgAlpha(0.96f);
     if (GetUiFont()) ImGui::PushFont(GetUiFont());
+    char windowTitle[96]{};
+    sprintf_s(windowTitle, "%s###OverlayAIMainMenu",
+        g_App.menuTitle[0] ? g_App.menuTitle : "OverlayAI");
     const bool menuVisible = ImGui::Begin(
-        g_App.menuTitle, &g_MenuOpen, ImGuiWindowFlags_NoCollapse);
+        windowTitle, &g_MenuOpen, ImGuiWindowFlags_NoCollapse);
     if (menuVisible) {
         ImGui::InputText(Localized("Titulo de la ventana##window_title",
             "Window title##window_title"), g_App.menuTitle, sizeof(g_App.menuTitle));
@@ -888,9 +891,10 @@ void RenderEspMenu() {
                     "%s", Localized(
                         "La coleccion se guarda con Configs. No crea ni modifica objetos de Steam.",
                         "The collection is saved with Configs. It does not create or modify Steam items."));
-                ImGui::Checkbox(Localized("Activar coleccion y runtime local##inventory_enabled",
+                if (ImGui::Checkbox(Localized("Activar coleccion y runtime local##inventory_enabled",
                         "Enable local collection and runtime##inventory_enabled"),
-                    &g_InventoryChanger.enabled);
+                    &g_InventoryChanger.enabled))
+                    RequestInventoryChangerRefresh();
                 ImGui::TextDisabled("%s", Localized(
                     "Control maestro: publica la coleccion al Bridge y habilita la aplicacion local.",
                     "Master control: publishes the collection to the Bridge and enables local application."));
@@ -923,10 +927,11 @@ void RenderEspMenu() {
                         "Overlay mode available. Equip a Music Kit and enable Inventory Changer."));
                 }
                 ImGui::SeparatorText(Localized("Preferencias", "Preferences"));
-                ImGui::Checkbox(Localized(
+                if (ImGui::Checkbox(Localized(
                         "Presentar automaticamente los articulos nuevos##auto_reveal",
                         "Automatically present new items##auto_reveal"),
-                    &g_InventoryChanger.queueRevealWhenUnavailable);
+                    &g_InventoryChanger.queueRevealWhenUnavailable))
+                    RequestInventoryChangerRefresh();
                 if (runtimeStatus.bridgeActive)
                     ImGui::TextDisabled("%s", Localized(
                         "Los articulos se acumulan y NEW ITEM se abre al entrar en Inventario.",
@@ -935,9 +940,10 @@ void RenderEspMenu() {
                     ImGui::TextDisabled("%s", Localized(
                         "La preferencia queda guardada; NEW ITEM requiere el Bridge.",
                         "The preference is saved; NEW ITEM requires the Bridge."));
-                ImGui::Checkbox(Localized("Aplicar mi cuchillo al controlar bots##bot_knife",
+                if (ImGui::Checkbox(Localized("Aplicar mi cuchillo al controlar bots##bot_knife",
                         "Apply my knife when controlling bots##bot_knife"),
-                    &g_InventoryChanger.applyKnivesToControlledBots);
+                    &g_InventoryChanger.applyKnivesToControlledBots))
+                    RequestInventoryChangerRefresh();
                 ImGui::TextDisabled("%s", Localized(
                     "Desactivado: el bot conserva su propio cuchillo (comportamiento realista).",
                     "Disabled: the bot keeps its own knife (realistic behavior)."));
@@ -1663,9 +1669,10 @@ void RenderEspMenu() {
                         : Localized("desconectado", "disconnected"),
                     pendingRevealCount);
                 if (inventoryRuntimeStatus.bridgeActive) {
-                    ImGui::Checkbox(Localized("UI Panorama de prueba##panorama_debug_ui",
+                    if (ImGui::Checkbox(Localized("UI Panorama de prueba##panorama_debug_ui",
                         "Panorama test UI##panorama_debug_ui"),
-                        &g_InventoryChanger.useDebugPanoramaUi);
+                        &g_InventoryChanger.useDebugPanoramaUi))
+                        RequestInventoryChangerRefresh();
                     ImGui::TextDisabled(Localized(
                         "Desactivado: reveal nativo. Activado: indicador naranja y modal personalizado.",
                         "Disabled: native reveal. Enabled: orange badge and custom modal."));

@@ -1,0 +1,4 @@
+#include "resource.h"
+
+IDR_WEAPON_ICON_FONT RCDATA "assets\\obs_icons.ttf"
+IDI_OVERLAYAI_APP ICON "resources\\OverlayAI.icon.ico"

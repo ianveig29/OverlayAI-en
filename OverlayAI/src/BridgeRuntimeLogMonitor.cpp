@@ -7,10 +7,10 @@
 #include <algorithm>
 #include <cstdint>
 #include <string>
-#include <vector>
+#include <array>
 
 namespace {
-    constexpr ULONGLONG kPollIntervalMs = 100;
+    constexpr ULONGLONG kPollIntervalMs = 250;
     constexpr DWORD kMaxReadBytes = 64 * 1024;
 
     bool g_initialized = false;
@@ -18,6 +18,7 @@ namespace {
     uint64_t g_offset = 0;
     ULONGLONG g_nextPollAt = 0;
     std::string g_pendingLine;
+    std::array<char, kMaxReadBytes> g_readBuffer{};
 
     uint64_t GetFileId(const BY_HANDLE_FILE_INFORMATION& info) {
         return (static_cast<uint64_t>(info.dwVolumeSerialNumber) << 32) ^
@@ -28,14 +29,11 @@ namespace {
     bool ShouldForward(const std::string& line) {
         constexpr const char* prefixes[] = {
             "InventoryBridge",
-            "FrameStage",
-            "Weapon observer",
             "Weapon skin",
-            "SOCache view diagnostic",
+            "Weapon StatTrak",
+            "StatTrak",
             "SOCache item create",
-            "Native weapon loadout",
-            "SetItemViewAttributeByName",
-            "SetMeshGroupMask"
+            "Native weapon loadout"
         };
         for (const char* prefix : prefixes) {
             if (line.rfind(prefix, 0) == 0) return true;
@@ -123,14 +121,13 @@ void PumpBridgeRuntimeLog() {
     const uint64_t remaining = fileSize - g_offset;
     const DWORD toRead = static_cast<DWORD>(std::min<uint64_t>(
         remaining, kMaxReadBytes));
-    std::vector<char> buffer(toRead);
     DWORD bytesRead = 0;
-    const BOOL read = ReadFile(file, buffer.data(), toRead, &bytesRead, nullptr);
+    const BOOL read = ReadFile(file, g_readBuffer.data(), toRead, &bytesRead, nullptr);
     CloseHandle(file);
     if (!read || bytesRead == 0) return;
 
     g_offset += bytesRead;
-    g_pendingLine.append(buffer.data(), bytesRead);
+    g_pendingLine.append(g_readBuffer.data(), bytesRead);
     ForwardCompleteLines();
 }
 

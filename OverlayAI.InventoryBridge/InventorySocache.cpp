@@ -87,21 +87,22 @@ namespace {
     GeneratedItemState g_generatedItems[kMaxGeneratedItems]{};
     LoadoutOverrideState g_loadoutOverrides[kMaxLoadoutOverrides]{};
 
+    inline bool IsValidUserPointer(const void* address, SIZE_T size = 1) noexcept {
+        const uintptr_t ptr = reinterpret_cast<uintptr_t>(address);
+        return ptr >= 0x10000 && ptr <= (0x7FFFFFFEFFFFull - size);
+    }
+
     bool IsReadable(const void* address, SIZE_T size) noexcept {
-        if (!address || size == 0) return false;
-        MEMORY_BASIC_INFORMATION info{};
-        if (!VirtualQuery(address, &info, sizeof(info)) ||
-            info.State != MEM_COMMIT ||
-            (info.Protect & (PAGE_GUARD | PAGE_NOACCESS)) != 0)
+        if (!IsValidUserPointer(address, size)) return false;
+        __try {
+            volatile const char* probe = reinterpret_cast<const char*>(address);
+            char probeByte = probe[0];
+            if (size > 1) probeByte = probe[size - 1];
+            (void)probeByte;
+            return true;
+        } __except (EXCEPTION_EXECUTE_HANDLER) {
             return false;
-        const DWORD readable = PAGE_READONLY | PAGE_READWRITE |
-            PAGE_WRITECOPY | PAGE_EXECUTE_READ | PAGE_EXECUTE_READWRITE |
-            PAGE_EXECUTE_WRITECOPY;
-        if ((info.Protect & readable) == 0) return false;
-        const uintptr_t start = reinterpret_cast<uintptr_t>(address);
-        const uintptr_t end = reinterpret_cast<uintptr_t>(info.BaseAddress) +
-            info.RegionSize;
-        return start <= end && size <= end - start;
+        }
     }
 
     bool IsExecutable(const void* address) noexcept {
@@ -117,34 +118,42 @@ namespace {
 
     template <typename T>
     bool Read(uintptr_t address, T& value) noexcept {
-        if (!IsReadable(reinterpret_cast<const void*>(address), sizeof(T)))
+        if (!IsValidUserPointer(reinterpret_cast<const void*>(address), sizeof(T)))
             return false;
-        CopyMemory(&value, reinterpret_cast<const void*>(address), sizeof(T));
-        return true;
+        __try {
+            CopyMemory(&value, reinterpret_cast<const void*>(address), sizeof(T));
+            return true;
+        } __except (EXCEPTION_EXECUTE_HANDLER) {
+            return false;
+        }
     }
 
     bool IsWritable(void* address, SIZE_T size) noexcept {
-        if (!address || size == 0) return false;
-        MEMORY_BASIC_INFORMATION info{};
-        if (!VirtualQuery(address, &info, sizeof(info)) ||
-            info.State != MEM_COMMIT ||
-            (info.Protect & (PAGE_GUARD | PAGE_NOACCESS)) != 0)
+        if (!IsValidUserPointer(address, size)) return false;
+        __try {
+            volatile char* probe = reinterpret_cast<char*>(address);
+            char probeByte = probe[0];
+            probe[0] = probeByte;
+            if (size > 1) {
+                probeByte = probe[size - 1];
+                probe[size - 1] = probeByte;
+            }
+            return true;
+        } __except (EXCEPTION_EXECUTE_HANDLER) {
             return false;
-        const DWORD writable = PAGE_READWRITE | PAGE_WRITECOPY |
-            PAGE_EXECUTE_READWRITE | PAGE_EXECUTE_WRITECOPY;
-        if ((info.Protect & writable) == 0) return false;
-        const uintptr_t start = reinterpret_cast<uintptr_t>(address);
-        const uintptr_t end = reinterpret_cast<uintptr_t>(info.BaseAddress) +
-            info.RegionSize;
-        return start <= end && size <= end - start;
+        }
     }
 
     template <typename T>
     bool Write(uintptr_t address, const T& value) noexcept {
-        if (!IsWritable(reinterpret_cast<void*>(address), sizeof(T)))
+        if (!IsValidUserPointer(reinterpret_cast<const void*>(address), sizeof(T)))
             return false;
-        CopyMemory(reinterpret_cast<void*>(address), &value, sizeof(T));
-        return true;
+        __try {
+            CopyMemory(reinterpret_cast<void*>(address), &value, sizeof(T));
+            return true;
+        } __except (EXCEPTION_EXECUTE_HANDLER) {
+            return false;
+        }
     }
 
     template <typename Function>
@@ -361,16 +370,20 @@ namespace {
         if (!item || !g_diagnostics.itemTypeCache) return false;
         int count = 0;
         uintptr_t data = 0;
-        if (!Read(g_diagnostics.itemTypeCache + 0x8, count) || count < 0 ||
-            count > 8192 || !Read(g_diagnostics.itemTypeCache + 0x10, data) ||
-            (count > 0 && !data))
+        if (!Read(g_diagnostics.itemTypeCache + 0x8, count) || count <= 0 ||
+            count > 8192 || !Read(g_diagnostics.itemTypeCache + 0x10, data) || !data)
             return false;
-        for (int index = 0; index < count; ++index) {
-            uintptr_t current = 0;
-            if (Read(data + static_cast<uintptr_t>(index) *
-                    sizeof(uintptr_t), current) &&
-                current == reinterpret_cast<uintptr_t>(item))
-                return true;
+        if (!IsValidUserPointer(reinterpret_cast<const void*>(data), static_cast<SIZE_T>(count) * sizeof(uintptr_t)))
+            return false;
+        const uintptr_t target = reinterpret_cast<uintptr_t>(item);
+        __try {
+            const uintptr_t* items = reinterpret_cast<const uintptr_t*>(data);
+            for (int index = 0; index < count; ++index) {
+                if (items[index] == target)
+                    return true;
+            }
+        } __except (EXCEPTION_EXECUTE_HANDLER) {
+            return false;
         }
         return false;
     }

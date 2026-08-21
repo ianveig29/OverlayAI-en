@@ -10,6 +10,7 @@
 #include "Offsets.h"
 
 #include <algorithm>
+#include <cstring>
 #include <deque>
 #include <string>
 #include <unordered_map>
@@ -22,6 +23,8 @@ namespace {
     constexpr int kMaxCommandsPerFrame = 32;
     constexpr ULONGLONG kInventoryBridgeLeaseMs = 4000;
     constexpr char kInventoryBridgeSession[] = "inventory-bridge";
+    constexpr uint64_t kSnapshotHashOffset = 14695981039346656037ull;
+    constexpr uint64_t kSnapshotHashPrime = 1099511628211ull;
 
     void SignalInventoryBridgeStop() {
         HANDLE stopEvent = OpenEventW(
@@ -31,7 +34,27 @@ namespace {
         CloseHandle(stopEvent);
     }
 
-    std::string BuildRuntimeInventorySnapshot(uint64_t requestId) {
+    void HashSnapshotBytes(uint64_t& hash, const void* data, std::size_t size) {
+        const auto* bytes = static_cast<const unsigned char*>(data);
+        for (std::size_t index = 0; index < size; ++index) {
+            hash ^= bytes[index];
+            hash *= kSnapshotHashPrime;
+        }
+    }
+
+    template <typename T>
+    void HashSnapshotValue(uint64_t& hash, const T& value) {
+        HashSnapshotBytes(hash, &value, sizeof(value));
+    }
+
+    void HashSnapshotText(
+        uint64_t& hash, const char* text, std::size_t capacity) {
+        const std::size_t length = strnlen_s(text ? text : "", capacity);
+        HashSnapshotValue(hash, length);
+        if (length > 0) HashSnapshotBytes(hash, text, length);
+    }
+
+    InventoryRuntimeOffsets BuildRuntimeOffsets() {
         InventoryRuntimeOffsets runtimeOffsets;
         runtimeOffsets.entityList = Offsets::dwEntityList;
         runtimeOffsets.localPlayerController = Offsets::dwLocalPlayerController;
@@ -75,9 +98,74 @@ namespace {
         runtimeOffsets.needToReApplyGloves = Offsets::m_bNeedToReApplyGloves;
         runtimeOffsets.econGloves = Offsets::m_EconGloves;
         runtimeOffsets.econGlovesChanged = Offsets::m_nEconGlovesChanged;
-        return BuildInventorySnapshotMessage(
+        return runtimeOffsets;
+    }
+
+    uint64_t ComputeInventorySnapshotSignature(
+        const InventoryChangerSettings& state,
+        const InventoryRuntimeOffsets& runtimeOffsets,
+        uint64_t musicKitApplyRevision) {
+        uint64_t hash = kSnapshotHashOffset;
+        HashSnapshotBytes(hash, &runtimeOffsets, sizeof(runtimeOffsets));
+        HashSnapshotValue(hash, musicKitApplyRevision);
+        HashSnapshotValue(hash, state.storageVersion);
+        HashSnapshotValue(hash, state.nextLocalId);
+        HashSnapshotValue(hash, state.selectedLocalId);
+        HashSnapshotValue(hash, state.pendingRevealItemId);
+        HashSnapshotValue(hash, state.pendingRevealItemCount);
+        for (int index = 0; index < state.pendingRevealItemCount &&
+            index < kMaxLocalInventoryItems; ++index)
+            HashSnapshotValue(hash, state.pendingRevealItemIds[index]);
+        HashSnapshotValue(hash, state.queueRevealWhenUnavailable);
+        HashSnapshotValue(hash, state.applyKnivesToControlledBots);
+        HashSnapshotValue(hash, state.useDebugPanoramaUi);
+        HashSnapshotValue(hash, state.enabled);
+        HashSnapshotValue(hash, state.loadout.musicKit);
+        HashSnapshotValue(hash, state.loadout.terroristKnife);
+        HashSnapshotValue(hash, state.loadout.counterTerroristKnife);
+        HashSnapshotValue(hash, state.loadout.terroristGloves);
+        HashSnapshotValue(hash, state.loadout.counterTerroristGloves);
+        HashSnapshotValue(hash, state.loadout.terroristAgent);
+        HashSnapshotValue(hash, state.loadout.counterTerroristAgent);
+        for (const LocalInventoryItem& item : state.items) {
+            HashSnapshotValue(hash, item.occupied);
+            if (!item.occupied) continue;
+            HashSnapshotValue(hash, item.localId);
+            HashSnapshotValue(hash, item.type);
+            HashSnapshotValue(hash, item.definitionIndex);
+            HashSnapshotValue(hash, item.paintIndex);
+            HashSnapshotValue(hash, item.wear);
+            HashSnapshotValue(hash, item.seed);
+            HashSnapshotValue(hash, item.statTrak);
+            HashSnapshotValue(hash, item.statTrakCount);
+            HashSnapshotValue(hash, item.souvenir);
+            HashSnapshotValue(hash, item.equippedTeam);
+            HashSnapshotValue(hash, item.acquiredAt);
+            HashSnapshotValue(hash, item.validity);
+            HashSnapshotText(hash, item.customName, sizeof(item.customName));
+            HashSnapshotText(hash, item.displayName, sizeof(item.displayName));
+        }
+        return hash;
+    }
+
+    std::string BuildRuntimeInventorySnapshot(uint64_t requestId) {
+        const InventoryRuntimeOffsets runtimeOffsets = BuildRuntimeOffsets();
+        const uint64_t musicKitApplyRevision = GetMusicKitApplyRevision();
+        const uint64_t signature = ComputeInventorySnapshotSignature(
+            g_InventoryChanger, runtimeOffsets, musicKitApplyRevision);
+        static uint64_t cachedSignature = 0;
+        static uint64_t cachedRequestId = 0;
+        static std::string cachedSnapshot;
+        if (!cachedSnapshot.empty() && cachedSignature == signature &&
+            cachedRequestId == requestId)
+            return cachedSnapshot;
+
+        cachedSignature = signature;
+        cachedRequestId = requestId;
+        cachedSnapshot = BuildInventorySnapshotMessage(
             g_InventoryChanger, requestId, &runtimeOffsets,
-            GetMusicKitApplyRevision());
+            musicKitApplyRevision);
+        return cachedSnapshot;
     }
 
     int ResolveLoadoutTeam(const LocalInventoryItem& item, int requestedTeam) {
