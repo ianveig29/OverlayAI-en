@@ -360,7 +360,7 @@ Detects and displays information about the bomb:
 
 ### 8.15 Radar (RadarHack.cpp / .h)
 
-Draws a mini-radar in a corner of the screen showing all player positions, even those behind walls. It converts 3D world positions to a 2D minimap.
+Uses the game's own "enemy spotted" system to show player positions on a mini-radar in a corner of the screen. It does not create a new radar, but relies on the information the game already exposes about detected enemies. It converts 3D world positions to a 2D minimap.
 
 ### 8.16 Skeleton (Skeleton.cpp / .h)
 
