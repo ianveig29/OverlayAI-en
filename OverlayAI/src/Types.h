@@ -111,6 +111,12 @@ struct EspSettings {
     bool showCrosshair = false;
     bool showSpectatorList = false;
     bool showBombInfo = false;
+    bool bombInfoShowSite = true;
+    bool bombInfoShowTimer = true;
+    bool bombInfoShowDefusing = true;
+    bool bombInfoShowDecision = true;
+    bool bombInfoAutoResize = true;
+    int fontMode = 0; // 0 = Modern (Segoe UI), 1 = Classic (Retro ImGui)
     bool showGrenadeTrajectory = false;
     // 0 = whenever a grenade is equipped, 1 = only while holding a throw button.
     int grenadeTrajectoryMode = 0;
@@ -140,8 +146,11 @@ struct EspSettings {
     bool skeletonShowJoints = true;
     float skeletonScale = 1.0f; // scale multiplier for offsets
     bool skeletonUseTeamColor = false; // legacy setting kept for config compatibility
-    // (enableAntiFlashbang controls antiflash behavior)
-    // Window toggles
+    // UI placeholder flags
+    bool enableThirdperson = false;
+    bool showMoney = false;
+    bool fakeProfile = false;
+    bool quitPunchview = false;
 };
 
 struct AppSettings {
@@ -196,4 +205,6 @@ struct AimSettings {
     // Allow aimlock when flashed/in smoke
     bool allowWhenFlashed = false;
     bool allowWhenInSmoke = false;
+    // UI placeholder flag
+    bool recoilControlSystem = false;
 };

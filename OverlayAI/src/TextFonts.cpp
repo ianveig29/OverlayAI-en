@@ -4,11 +4,14 @@
 
 #include <Windows.h>
 
+#include "Config.h"
+
 namespace {
     constexpr float kPlayerTextSize = 13.0f;
     constexpr float kUiTextSize = 16.0f;
-    ImFont* g_playerNameFont = nullptr;
-    ImFont* g_uiFont = nullptr;
+    ImFont* g_classicFont = nullptr;
+    ImFont* g_modernPlayerFont = nullptr;
+    ImFont* g_modernUiFont = nullptr;
 
     bool FileExists(const char* path) {
         const DWORD attributes = GetFileAttributesA(path);
@@ -43,17 +46,19 @@ namespace {
 
 bool InitializeTextFonts() {
     ImGuiIO& io = ImGui::GetIO();
+
+    // 1. Classic Retro font (ProggyClean default built-in to ImGui)
+    g_classicFont = io.Fonts->AddFontDefault();
+
+    // 2. Modern font (Segoe UI)
     if (FileExists("C:\\Windows\\Fonts\\segoeui.ttf")) {
-        g_playerNameFont = io.Fonts->AddFontFromFileTTF(
+        g_modernPlayerFont = io.Fonts->AddFontFromFileTTF(
             "C:\\Windows\\Fonts\\segoeui.ttf", kPlayerTextSize);
-        g_uiFont = io.Fonts->AddFontFromFileTTF(
+        g_modernUiFont = io.Fonts->AddFontFromFileTTF(
             "C:\\Windows\\Fonts\\segoeui.ttf", kUiTextSize);
     }
-    if (!g_playerNameFont)
-        g_playerNameFont = io.Fonts->AddFontDefault();
-    if (!g_uiFont)
-        g_uiFont = g_playerNameFont;
-    if (!g_playerNameFont) return false;
+    if (!g_modernPlayerFont) g_modernPlayerFont = g_classicFont;
+    if (!g_modernUiFont) g_modernUiFont = g_classicFont;
 
     static const ImWchar symbolRanges[] = {
         0x2000, 0x2BFF,
@@ -76,19 +81,31 @@ bool InitializeTextFonts() {
         0
     };
 
-    MergeFallbacks(g_playerNameFont, kPlayerTextSize,
-        symbolRanges, cjkRanges, hangulRanges, emojiRanges);
-    if (g_uiFont != g_playerNameFont)
-        MergeFallbacks(g_uiFont, kUiTextSize,
+    if (g_modernPlayerFont && g_modernPlayerFont != g_classicFont) {
+        MergeFallbacks(g_modernPlayerFont, kPlayerTextSize,
             symbolRanges, cjkRanges, hangulRanges, emojiRanges);
-    io.FontDefault = g_playerNameFont;
+    }
+    if (g_modernUiFont && g_modernUiFont != g_classicFont && g_modernUiFont != g_modernPlayerFont) {
+        MergeFallbacks(g_modernUiFont, kUiTextSize,
+            symbolRanges, cjkRanges, hangulRanges, emojiRanges);
+    }
+
+    io.FontDefault = (g_Esp.fontMode == 1 && g_classicFont) ? g_classicFont : g_modernPlayerFont;
     return true;
 }
 
 ImFont* GetPlayerNameFont() {
-    return g_playerNameFont;
+    if (g_Esp.fontMode == 1 && g_classicFont)
+        return g_classicFont;
+    return g_modernPlayerFont ? g_modernPlayerFont : g_classicFont;
 }
 
 ImFont* GetUiFont() {
-    return g_uiFont ? g_uiFont : g_playerNameFont;
+    if (g_Esp.fontMode == 1 && g_classicFont)
+        return g_classicFont;
+    return g_modernUiFont ? g_modernUiFont : g_classicFont;
+}
+
+ImFont* GetClassicFont() {
+    return g_classicFont;
 }

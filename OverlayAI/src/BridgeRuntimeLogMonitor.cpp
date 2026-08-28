@@ -27,13 +27,24 @@ namespace {
     }
 
     bool ShouldForward(const std::string& line) {
+        // Suppress repetitive low-level weapon hook trace spam
+        if (line.find("Weapon skin midpoint") != std::string::npos ||
+            line.find("Weapon skin material refresh") != std::string::npos ||
+            line.find("Weapon skin HUD:") != std::string::npos ||
+            line.find("Weapon skin lifecycle:") != std::string::npos ||
+            line.find("Knife identity:") != std::string::npos) {
+            return false;
+        }
+
         constexpr const char* prefixes[] = {
             "InventoryBridge",
             "Weapon skin",
             "Weapon StatTrak",
             "StatTrak",
-            "SOCache item create",
-            "Native weapon loadout"
+            "SOCache item",
+            "Native weapon loadout",
+            "Glove SOCache",
+            "Music Kit SOCache"
         };
         for (const char* prefix : prefixes) {
             if (line.rfind(prefix, 0) == 0) return true;

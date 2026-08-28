@@ -157,6 +157,12 @@ void SaveEspConfig(const char* path) {
     fprintf(f, "show_helmet_indicator=%d\n", g_Esp.showHelmetIndicator ? 1 : 0);
     fprintf(f, "show_spectator_list=%d\n", g_Esp.showSpectatorList ? 1 : 0);
     fprintf(f, "show_bomb_info=%d\n", g_Esp.showBombInfo ? 1 : 0);
+    fprintf(f, "bomb_info_show_site=%d\n", g_Esp.bombInfoShowSite ? 1 : 0);
+    fprintf(f, "bomb_info_show_timer=%d\n", g_Esp.bombInfoShowTimer ? 1 : 0);
+    fprintf(f, "bomb_info_show_defusing=%d\n", g_Esp.bombInfoShowDefusing ? 1 : 0);
+    fprintf(f, "bomb_info_show_decision=%d\n", g_Esp.bombInfoShowDecision ? 1 : 0);
+    fprintf(f, "bomb_info_auto_resize=%d\n", g_Esp.bombInfoAutoResize ? 1 : 0);
+    fprintf(f, "font_mode=%d\n", g_Esp.fontMode);
     fprintf(f, "radar_hack_enabled=%d\n", g_Esp.enableRadarHack ? 1 : 0);
     fprintf(f, "show_crosshair=%d\n", g_Esp.showCrosshair ? 1 : 0);
     fprintf(f, "grenade_trajectory_enabled=%d\n", g_Esp.showGrenadeTrajectory ? 1 : 0);
@@ -170,8 +176,12 @@ void SaveEspConfig(const char* path) {
     fprintf(f, "aim_require_visible=%d\n", g_Aim.requireVisible ? 1 : 0);
     fprintf(f, "aim_use_scoped_fov=%d\n", g_Aim.useScopedFov ? 1 : 0);
     fprintf(f, "aim_single_scope_fov=%f\n", g_Aim.singleScopeFovDegrees);
-    fprintf(f, "aim_double_scope_fov=%f\n", g_Aim.doubleScopeFovDegrees);
     fprintf(f, "anti_flash_enabled=%d\n", g_Esp.enableAntiFlashbang ? 1 : 0);
+    fprintf(f, "thirdperson_enabled=%d\n", g_Esp.enableThirdperson ? 1 : 0);
+    fprintf(f, "show_money=%d\n", g_Esp.showMoney ? 1 : 0);
+    fprintf(f, "fake_profile=%d\n", g_Esp.fakeProfile ? 1 : 0);
+    fprintf(f, "quit_punchview=%d\n", g_Esp.quitPunchview ? 1 : 0);
+    fprintf(f, "rcs_enabled=%d\n", g_Aim.recoilControlSystem ? 1 : 0);
     fprintf(f, "flash_opacity_percent=%d\n", g_Esp.antiFlashOpacityPercent);
     fprintf(f, "flash_threshold=%f\n", g_Esp.flashThreshold);
     fprintf(f, "aim_allow_flashed=%d\n", g_Aim.allowWhenFlashed ? 1 : 0);
@@ -430,6 +440,16 @@ void LoadEspConfig(const char* path) {
             if (f1 >= 0.1f && f1 <= 89.0f) g_Aim.doubleScopeFovDegrees = f1;
         } else if (sscanf_s(p, "anti_flash_enabled=%d", &i1) == 1) {
             g_Esp.enableAntiFlashbang = i1 != 0;
+        } else if (sscanf_s(p, "thirdperson_enabled=%d", &i1) == 1) {
+            g_Esp.enableThirdperson = i1 != 0;
+        } else if (sscanf_s(p, "show_money=%d", &i1) == 1) {
+            g_Esp.showMoney = i1 != 0;
+        } else if (sscanf_s(p, "fake_profile=%d", &i1) == 1) {
+            g_Esp.fakeProfile = i1 != 0;
+        } else if (sscanf_s(p, "quit_punchview=%d", &i1) == 1) {
+            g_Esp.quitPunchview = i1 != 0;
+        } else if (sscanf_s(p, "rcs_enabled=%d", &i1) == 1) {
+            g_Aim.recoilControlSystem = i1 != 0;
         } else if (sscanf_s(p, "flash_opacity_percent=%d", &i1) == 1) {
             if (i1 >= 0 && i1 <= 100) g_Esp.antiFlashOpacityPercent = i1;
         } else if (sscanf_s(p, "flash_threshold=%f", &f1) == 1) {
@@ -453,7 +473,7 @@ void LoadEspConfig(const char* path) {
         } else if (sscanf_s(p, "trigger_allow_smoke=%d", &i1) == 1) {
             g_Triggerbot.allowWhenInSmoke = i1 != 0;
         }
-        else if (sscanf_s(p, "show_bomb_carrier=%d", &i1) == 1) {
+        if (sscanf_s(p, "show_bomb_carrier=%d", &i1) == 1) {
             g_Esp.showBombCarrier = i1 != 0;
         } else if (sscanf_s(p, "show_defuse_kits=%d", &i1) == 1) {
             g_Esp.showDefuseKits = i1 != 0;
@@ -461,6 +481,18 @@ void LoadEspConfig(const char* path) {
             g_Esp.showSpectatorList = i1 != 0;
         } else if (sscanf_s(p, "show_bomb_info=%d", &i1) == 1) {
             g_Esp.showBombInfo = i1 != 0;
+        } else if (sscanf_s(p, "bomb_info_show_site=%d", &i1) == 1) {
+            g_Esp.bombInfoShowSite = i1 != 0;
+        } else if (sscanf_s(p, "bomb_info_show_timer=%d", &i1) == 1) {
+            g_Esp.bombInfoShowTimer = i1 != 0;
+        } else if (sscanf_s(p, "bomb_info_show_defusing=%d", &i1) == 1) {
+            g_Esp.bombInfoShowDefusing = i1 != 0;
+        } else if (sscanf_s(p, "bomb_info_show_decision=%d", &i1) == 1) {
+            g_Esp.bombInfoShowDecision = i1 != 0;
+        } else if (sscanf_s(p, "bomb_info_auto_resize=%d", &i1) == 1) {
+            g_Esp.bombInfoAutoResize = i1 != 0;
+        } else if (sscanf_s(p, "font_mode=%d", &i1) == 1) {
+            if (i1 >= 0 && i1 <= 1) g_Esp.fontMode = i1;
         } else if (sscanf_s(p, "radar_hack_enabled=%d", &i1) == 1) {
             g_Esp.enableRadarHack = i1 != 0;
         } else if (sscanf_s(p, "show_crosshair=%d", &i1) == 1) {
@@ -469,7 +501,8 @@ void LoadEspConfig(const char* path) {
             g_Esp.showGrenadeTrajectory = i1 != 0;
         } else if (sscanf_s(p, "grenade_trajectory_mode=%d", &i1) == 1) {
             if (i1 >= 0 && i1 <= 1) g_Esp.grenadeTrajectoryMode = i1;
-        } else if (sscanf_s(p, "other_glow_enabled=%d", &i1) == 1 ||
+        }
+        if (sscanf_s(p, "other_glow_enabled=%d", &i1) == 1 ||
             sscanf_s(p, "custom_glow_enabled=%d", &i1) == 1) {
             g_Esp.enableOtherGlow = i1 != 0;
         } else if (sscanf_s(p, "other_glow_static_color=%d", &i1) == 1) {
@@ -494,7 +527,8 @@ void LoadEspConfig(const char* path) {
         } else if (sscanf_s(p, "other_glow_layers=%d", &i1) == 1 ||
             sscanf_s(p, "custom_glow_layers=%d", &i1) == 1) {
             g_Esp.otherGlowLayers = std::clamp(i1, 1, 3);
-        } else if (sscanf_s(p, "show_skeleton=%d", &i1) == 1) {
+        }
+        if (sscanf_s(p, "show_skeleton=%d", &i1) == 1) {
             g_Esp.showSkeleton = i1 != 0;
         } else if (sscanf_s(p, "skeleton_color_mode=%d", &i1) == 1) {
             if (i1 >= 0 && i1 <= 2) g_Esp.skeletonColorMode = i1;

@@ -332,6 +332,15 @@ void RenderEspMenu() {
                         &language, languageItems, IM_ARRAYSIZE(languageItems)))
                     SetUiLanguage(language == 1
                         ? UiLanguage::English : UiLanguage::Spanish);
+
+                const char* fontItems[] = {
+                    "Moderna (Segoe UI)",
+                    "Clasica / Retro (ImGui)"
+                };
+                ImGui::SetNextItemWidth(200.0f);
+                ImGui::Combo(Localized("Tipografia / Fuente##font_mode", "Typography / Font##font_mode"),
+                    &g_Esp.fontMode, fontItems, IM_ARRAYSIZE(fontItems));
+
                 ImGui::TextDisabled("%s", Localized(
                     "UTF-8: los nombres de jugadores no dependen del idioma.",
                     "UTF-8: player names are language-independent."));
@@ -747,6 +756,8 @@ void RenderEspMenu() {
                 openVisualSectionsOnLaunch = false;
 
                 ImGui::Separator();
+                ImGui::Checkbox(Localized("Quitar Punchview##quit_punchview",
+                    "Quit Punchview##quit_punchview"), &g_Esp.quitPunchview);
 
                 ImGui::EndTabItem();
             }
@@ -810,6 +821,8 @@ void RenderEspMenu() {
                     "Allow Aimlock when flashed##aim_flash"), &g_Aim.allowWhenFlashed);
                 ImGui::Checkbox(Localized("Permitir Aimlock dentro del humo##aim_smoke",
                     "Allow Aimlock in smoke##aim_smoke"), &g_Aim.allowWhenInSmoke);
+                ImGui::Checkbox(Localized("Control de retroceso (RCS)##rcs_enabled",
+                    "Recoil Control System##rcs_enabled"), &g_Aim.recoilControlSystem);
 
                 ImGui::EndTabItem();
             }
@@ -1610,6 +1623,23 @@ void RenderEspMenu() {
                     "Show spectator list##spectators"), &g_Esp.showSpectatorList);
                 ImGui::Checkbox(Localized("Mostrar informacion de la bomba##bomb_info",
                     "Show bomb info##bomb_info"), &g_Esp.showBombInfo);
+                if (g_Esp.showBombInfo) {
+                    ImGui::Indent(20.0f);
+                    ImGui::Checkbox(Localized("Mostrar sitio (A / B)##bomb_site",
+                        "Show bomb site (A / B)##bomb_site"), &g_Esp.bombInfoShowSite);
+                    ImGui::Checkbox(Localized("Mostrar temporizador y barra de detonacion##bomb_timer",
+                        "Show timer & explosion bar##bomb_timer"), &g_Esp.bombInfoShowTimer);
+                    ImGui::Checkbox(Localized("Mostrar estado de desactivacion y kit##bomb_defuse",
+                        "Show defuse status & kit##bomb_defuse"), &g_Esp.bombInfoShowDefusing);
+                    ImGui::Checkbox(Localized("Mostrar decision ('RUN or KEEP DEFUSING')##bomb_decision",
+                        "Show decision ('RUN or KEEP DEFUSING')##bomb_decision"), &g_Esp.bombInfoShowDecision);
+                    ImGui::Checkbox(Localized("Ajuste automatico de ventana##bomb_autoresize",
+                        "Auto resize window##bomb_autoresize"), &g_Esp.bombInfoAutoResize);
+                    ImGui::TextDisabled("%s", Localized(
+                        "Oculto automaticamente hasta que se planta la bomba.",
+                        "Automatically hidden until bomb is planted."));
+                    ImGui::Unindent(20.0f);
+                }
                 ImGui::Checkbox(Localized("Trayectoria de granadas##grenade_path",
                     "Grenade trajectory##grenade_path"), &g_Esp.showGrenadeTrajectory);
                 if (g_Esp.showGrenadeTrajectory) {
@@ -1639,6 +1669,14 @@ void RenderEspMenu() {
                     ImGui::SliderInt("Flash opacity (%)", &g_Esp.antiFlashOpacityPercent, 0, 100);
                     ImGui::TextDisabled("0%% = invisible | 100%% = original");
                 }
+
+                ImGui::Separator();
+                ImGui::Checkbox(Localized("Tercera persona##thirdperson",
+                    "Enable Thirdperson##thirdperson"), &g_Esp.enableThirdperson);
+                ImGui::Checkbox(Localized("Mostrar dinero##show_money",
+                    "Show Money##show_money"), &g_Esp.showMoney);
+                ImGui::Checkbox(Localized("Perfil falso##fake_profile",
+                    "Fake profile##fake_profile"), &g_Esp.fakeProfile);
 
                 ImGui::EndTabItem();
             }

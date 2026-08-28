@@ -5428,8 +5428,21 @@ namespace {
     bool SafeSetNetworkedItemViewStatTrakAttributes(
         uintptr_t itemView, int statTrak, int statTrakType = 0) {
         constexpr uintptr_t kNetworkedDynamicAttributesOffset = 0x280;
-        if (!itemView || !g_addOrSetAttributeByName || statTrak < 0)
+        if (!itemView || statTrak < 0)
             return false;
+        if (g_setItemViewAttributeByName) {
+            __try {
+                g_setItemViewAttributeByName(
+                    reinterpret_cast<void*>(itemView),
+                    "kill eater", EncodeIntegerAttributeValue(
+                        static_cast<uint32_t>(statTrak)));
+                g_setItemViewAttributeByName(
+                    reinterpret_cast<void*>(itemView),
+                    "kill eater score type", EncodeIntegerAttributeValue(
+                        static_cast<uint32_t>(statTrakType)));
+            } __except (EXCEPTION_EXECUTE_HANDLER) {}
+        }
+        if (!g_addOrSetAttributeByName) return true;
         __try {
             void* attributes = reinterpret_cast<void*>(
                 itemView + kNetworkedDynamicAttributesOffset);
@@ -5452,7 +5465,32 @@ namespace {
         int statTrak = -1, int statTrakType = 0) {
         constexpr uintptr_t kNetworkedDynamicAttributesOffset = 0x280;
         constexpr uintptr_t kAttributeCountOffset = 0x08;
-        if (!itemView || !g_addOrSetAttributeByName) return false;
+        if (!itemView) return false;
+        if (g_setItemViewAttributeByName) {
+            __try {
+                g_setItemViewAttributeByName(
+                    reinterpret_cast<void*>(itemView),
+                    "set item texture prefab", static_cast<float>(paintKit));
+                g_setItemViewAttributeByName(
+                    reinterpret_cast<void*>(itemView),
+                    "set item texture seed", static_cast<float>(seed));
+                g_setItemViewAttributeByName(
+                    reinterpret_cast<void*>(itemView),
+                    "set item texture wear", wear);
+                if (statTrak >= 0) {
+                    g_setItemViewAttributeByName(
+                        reinterpret_cast<void*>(itemView),
+                        "kill eater", EncodeIntegerAttributeValue(
+                            static_cast<uint32_t>(statTrak)));
+                    g_setItemViewAttributeByName(
+                        reinterpret_cast<void*>(itemView),
+                        "kill eater score type",
+                        EncodeIntegerAttributeValue(
+                            static_cast<uint32_t>(statTrakType)));
+                }
+            } __except (EXCEPTION_EXECUTE_HANDLER) {}
+        }
+        if (!g_addOrSetAttributeByName) return true;
         __try {
             const int emptyCount = 0;
             if (!SafeWrite(itemView + kNetworkedDynamicAttributesOffset +
@@ -5788,17 +5826,27 @@ namespace {
         }
     }
 
+    static uintptr_t s_lastRefreshedKnifeItemView = 0;
     void MaintainKnifeHud(uintptr_t itemView, ULONGLONG now) {
         if (!HasAppliedKnifeState() || g_appliedKnife.hudRefreshed ||
             now < g_appliedKnife.hudRefreshAt)
             return;
+
+        if (s_lastRefreshedKnifeItemView == itemView && s_lastRefreshedKnifeItemView != 0) {
+            g_appliedKnife.hudRefreshed = true;
+            return;
+        }
+
         ++g_appliedKnife.hudRefreshAttempts;
         g_appliedKnife.hudRefreshed = RefreshWeaponHudCache(
             itemView, "Knife");
-        if (!g_appliedKnife.hudRefreshed) {
+        if (g_appliedKnife.hudRefreshed) {
+            s_lastRefreshedKnifeItemView = itemView;
+        } else {
             g_appliedKnife.hudRefreshAt = now + 250;
-            if (g_appliedKnife.hudRefreshAttempts >= 5) {
+            if (g_appliedKnife.hudRefreshAttempts >= 3) {
                 g_appliedKnife.hudRefreshed = true;
+                s_lastRefreshedKnifeItemView = itemView;
                 AppendLog("Knife HUD: refresco no disponible.");
             }
         }
@@ -5926,11 +5974,18 @@ namespace {
         int gameTeam) {
         const int protocolTeam = gameTeam == kTerroristTeam
             ? 1 : gameTeam == kCounterTerroristTeam ? 2 : 0;
-        if (!protocolTeam) return nullptr;
         for (int index = 0; index < selection.weaponSkinItemCount; ++index) {
             const auto& item = selection.weaponSkinItems[index];
             if (item.definitionIndex == definitionIndex &&
                 (item.equippedTeam & protocolTeam) != 0)
+                return &item;
+        }
+        // Fallback: If no skin is equipped specifically for current team (e.g. CT picking up an AK-47,
+        // or T picking up an M4A1-S/M4A4), apply the player's configured skin from the opposing team.
+        for (int index = 0; index < selection.weaponSkinItemCount; ++index) {
+            const auto& item = selection.weaponSkinItems[index];
+            if (item.definitionIndex == definitionIndex &&
+                item.equippedTeam != 0)
                 return &item;
         }
         return nullptr;
@@ -6047,9 +6102,6 @@ namespace {
             SafeWrite(itemView + kDisallowSocOffset,
                 g_appliedWeaponSkin.originalDisallowSoc);
 
-        if (restored) {
-            (void)RefreshWeaponHudCache(itemView, "Weapon skin");
-        }
         char message[224]{};
         StringCchPrintfA(message, _countof(message),
             "Weapon skin: %s local=%llu def=%d context_cleared=%s "
@@ -6474,10 +6526,18 @@ namespace {
             const bool viewmodelSceneMeshUpdated = viewmodelSceneNode &&
                 SafeSetMeshGroupMaskOnSceneNode(
                     viewmodelSceneNode, meshGroupMask);
+            const bool itemViewAttrsWritten =
+                SafeSetItemViewSkinAttributes(itemView,
+                    target->paintKit, target->seed, target->wear,
+                    targetStatTrak);
+            (void)itemViewAttrsWritten;
             const bool attributesWritten =
                 SafeSetNetworkedItemViewSkinAttributes(itemView,
                     target->paintKit, target->seed, target->wear,
                     targetStatTrak);
+            bool initialModulesChanged = false;
+            const bool modulesRefreshed = targetStatTrak >= 0 &&
+                SafeRefreshWeaponModules(weapon, itemView, initialModulesChanged);
             const bool weaponPostUpdated = !earlyStage &&
                 SafePostDataUpdateSceneNode(weapon, selection);
             const bool viewmodelPostUpdated = !earlyStage && viewmodel &&
@@ -6488,8 +6548,8 @@ namespace {
             g_appliedWeaponSkin.materialRefreshPending = true;
             g_appliedWeaponSkin.materialRefreshAt = now;
             g_appliedWeaponSkin.materialRefreshAttempts = 0;
-            g_appliedWeaponSkin.statTrakModuleRefreshPending = false;
-            g_appliedWeaponSkin.statTrakModuleRefreshAt = 0;
+            g_appliedWeaponSkin.statTrakModuleRefreshPending = (targetStatTrak >= 0 && !modulesRefreshed);
+            g_appliedWeaponSkin.statTrakModuleRefreshAt = modulesRefreshed ? 0 : now + kWeaponSkinStatTrakModuleRetryIntervalMs;
             g_appliedWeaponSkin.statTrakModuleRefreshAttempts = 0;
             g_appliedWeaponSkin.statTrak = targetStatTrak;
             g_appliedWeaponSkin.spawnTimeIndex = spawnTimeIndex;
@@ -6782,7 +6842,7 @@ namespace {
             if (!g_appliedWeaponSkin.hudRefreshed) {
                 g_appliedWeaponSkin.hudRefreshAt =
                     now + kWeaponSkinHudRefreshDelayMs;
-                if (g_appliedWeaponSkin.hudRefreshAttempts >= 5)
+                if (g_appliedWeaponSkin.hudRefreshAttempts >= 3)
                     g_appliedWeaponSkin.hudRefreshed = true;
             }
         }

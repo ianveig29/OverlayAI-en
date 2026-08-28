@@ -36,6 +36,7 @@ public:
 		m_plantStart = ImGui::GetTime();
 		m_defuseStart = 0.0;
 		m_defuseDuration = 0.0;
+		m_defuserName.clear();
 	}
 
 	void SyncPlant(double timeToExplode, BombSite site) {
@@ -47,13 +48,15 @@ public:
 		m_plantStart = now - elapsed;
 		m_defuseStart = 0.0;
 		m_defuseDuration = 0.0;
+		m_defuserName.clear();
 	}
 
-	void StartDefuse(bool hasKit) {
-		if (m_state != BombState::Planted) return;
+	void StartDefuse(bool hasKit, const std::string& defuserName = "") {
+		if (m_state != BombState::Planted && m_state != BombState::Defusing) return;
 		m_defuseDuration = hasKit ? kDefuseTimeKit : kDefuseTimeNoKit;
 		m_defuseStart = ImGui::GetTime();
 		m_state = BombState::Defusing;
+		m_defuserName = defuserName;
 	}
 
 	void CancelDefuse() {
@@ -61,6 +64,7 @@ public:
 		m_state = BombState::Planted;
 		m_defuseStart = 0.0;
 		m_defuseDuration = 0.0;
+		m_defuserName.clear();
 	}
 
 	void Reset() {
@@ -69,6 +73,7 @@ public:
 		m_plantStart = 0.0;
 		m_defuseStart = 0.0;
 		m_defuseDuration = 0.0;
+		m_defuserName.clear();
 	}
 
 	bool Update() {
@@ -122,6 +127,8 @@ public:
 	}
 
 	bool DefuseHasKit() const { return m_defuseDuration == kDefuseTimeKit; }
+	const std::string& DefuserName() const { return m_defuserName; }
+	void SetDefuserName(const std::string& name) { m_defuserName = name; }
 
 	static std::string FormatTime(double seconds) {
 		if (seconds < 0.0) seconds = 0.0;
@@ -151,6 +158,7 @@ private:
 	double m_plantStart = 0.0;
 	double m_defuseStart = 0.0;
 	double m_defuseDuration = 0.0;
+	std::string m_defuserName;
 };
 
 // --- Planted info / helpers (merged) ---
@@ -358,7 +366,8 @@ inline void UpdateBombFromMemory() {
 		g_BombInfo.Plant(site);
 	}
 	if (p.beingDefused) {
-		if (g_BombInfo.State() == BombState::Planted) g_BombInfo.StartDefuse(p.defuserHasKit);
+		if (g_BombInfo.State() == BombState::Planted) g_BombInfo.StartDefuse(p.defuserHasKit, p.defuserName);
+		g_BombInfo.SetDefuserName(p.defuserName);
 	} else {
 		if (g_BombInfo.State() == BombState::Defusing) g_BombInfo.CancelDefuse();
 	}

@@ -36,7 +36,8 @@ namespace {
     void CaptureOverrideState(uintptr_t pawn) {
         g_override = {};
         g_override.pawn = pawn;
-        g_override.maxAlpha = ReadFiniteFloat(pawn + Offsets::m_flFlashMaxAlpha);
+        const float current = ReadFiniteFloat(pawn + Offsets::m_flFlashMaxAlpha);
+        g_override.maxAlpha = (current > 0.0f && current <= 255.0f) ? current : 255.0f;
         g_override.captured = true;
     }
 
@@ -107,11 +108,19 @@ void RunAntiFlash(float opacityPercent) {
     if (!g_override.captured)
         CaptureOverrideState(pawn);
 
-    const float retained = (std::clamp)(opacityPercent, 0.0f, 100.0f) / 100.0f;
-    const float targetMaxAlpha = g_override.maxAlpha * retained;
+    const float clampedPercent = (std::clamp)(opacityPercent, 0.0f, 100.0f);
+    const float retained = clampedPercent / 100.0f;
+    const float targetMaxAlpha = 255.0f * retained;
     const float currentMaxAlpha = ReadFiniteFloat(pawn + Offsets::m_flFlashMaxAlpha);
+
     if (std::fabs(currentMaxAlpha - targetMaxAlpha) > 0.01f)
         (void)mem.Write<float>(pawn + Offsets::m_flFlashMaxAlpha, targetMaxAlpha);
+
+    if (clampedPercent <= 0.01f) {
+        const float currentDuration = ReadFiniteFloat(pawn + Offsets::m_flFlashDuration);
+        if (currentDuration > 0.0f)
+            (void)mem.Write<float>(pawn + Offsets::m_flFlashDuration, 0.0f);
+    }
 }
 
 void RestoreAntiFlashOverrides() {
