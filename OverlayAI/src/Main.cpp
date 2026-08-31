@@ -252,6 +252,18 @@ int main(int argc, char** argv) {
             running = false;
             break;
         }
+
+        // Detect if CS2 has exited and close OverlayAI automatically.
+        // GetExitCodeProcess returns STILL_ACTIVE while the process exists.
+        // If the process has terminated, OverlayAI shuts down cleanly
+        // (all restore functions run in the cleanup section below).
+        if (g_App.autoCloseOnGameExit && mem.hProcess) {
+            DWORD exitCode = 0;
+            if (GetExitCodeProcess(mem.hProcess, &exitCode) && exitCode != STILL_ACTIVE) {
+                running = false;
+                break;
+            }
+        }
         PollTriggerbotKeyBind();
         PollAimKeyBind();
         PollBhopKeyBind();

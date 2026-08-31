@@ -160,6 +160,7 @@ struct AppSettings {
     bool panicBindEnabled = true;
     int panicVk = VK_END;
     bool waitingForPanicKey = false;
+    bool autoCloseOnGameExit = true; // Close OverlayAI when CS2 closes
 };
 
 struct TriggerbotSettings {

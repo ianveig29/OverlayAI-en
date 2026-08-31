@@ -368,6 +368,10 @@ void RenderEspMenu() {
                 ImGui::Checkbox(Localized("Activar tecla Panic##panic_enabled",
                     "Enable Panic key##panic_enabled"), &g_App.panicBindEnabled);
 
+                ImGui::Checkbox(Localized("Cerrar OverlayAI al cerrar CS2##auto_close",
+                    "Close OverlayAI when CS2 closes##auto_close"),
+                    &g_App.autoCloseOnGameExit);
+
                 if (g_App.waitingForPanicKey)
                     ImGui::TextColored(ImVec4(1, 0.8f, 0.2f, 1), "%s",
                         Localized("Pulsa una tecla (ESC para cancelar)...",

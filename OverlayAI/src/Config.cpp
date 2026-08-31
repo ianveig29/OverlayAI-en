@@ -149,6 +149,7 @@ void SaveEspConfig(const char* path) {
         g_Aim.fovDegrees,
         g_Aim.smoothing);
     fprintf(f, "panic_bind_enabled=%d\n", g_App.panicBindEnabled ? 1 : 0);
+    fprintf(f, "auto_close_on_game_exit=%d\n", g_App.autoCloseOnGameExit ? 1 : 0);
     fprintf(f, "panic_key=%d\n", g_App.panicVk);
     // write new toggles
     fprintf(f, "show_bomb_carrier=%d\n", g_Esp.showBombCarrier ? 1 : 0);
@@ -307,6 +308,8 @@ void LoadEspConfig(const char* path) {
             if (i1 > 0 && i1 < 256) g_App.menuToggleVk = i1;
         } else if (sscanf_s(p, "panic_bind_enabled=%d", &i1) == 1) {
             g_App.panicBindEnabled = i1 != 0;
+        } else if (sscanf_s(p, "auto_close_on_game_exit=%d", &i1) == 1) {
+            g_App.autoCloseOnGameExit = i1 != 0;
         } else if (sscanf_s(p, "panic_key=%d", &i1) == 1) {
             if (i1 > 0 && i1 < 256 && i1 != g_App.menuToggleVk) g_App.panicVk = i1;
         }
