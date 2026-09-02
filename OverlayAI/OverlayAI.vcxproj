@@ -172,6 +172,8 @@
     <ClCompile Include="src\Main.cpp" />
     <ClCompile Include="src\ModelDiagnostics.cpp" />
     <ClCompile Include="src\Bhop.cpp" />
+    <ClCompile Include="src\ThirdPerson.cpp" />
+    <ClCompile Include="src\MoneyReveal.cpp" />
     <ClCompile Include="src\PatchRestore.cpp" />
     <ClCompile Include="src\Skeleton.cpp" />
     <ClCompile Include="src\SmokeColor.cpp" />
@@ -231,6 +233,8 @@
     <ClInclude Include="src\Offsets.h" />
     <ClInclude Include="src\Overlay.h" />
     <ClInclude Include="src\Bhop.h" />
+    <ClInclude Include="src\ThirdPerson.h" />
+    <ClInclude Include="src\MoneyReveal.h" />
     <ClInclude Include="src\Triggerbot.h" />
     <ClInclude Include="src\Types.h" />
     <ClInclude Include="src\WeaponIcons.h" />

@@ -148,6 +148,8 @@ struct EspSettings {
     bool skeletonUseTeamColor = false; // legacy setting kept for config compatibility
     // UI placeholder flags
     bool enableThirdperson = false;
+    int thirdPersonKeyVk = 0x50; // Default P key to toggle third person
+    bool waitingForThirdPersonKey = false; // true when user is about to assign key
     bool showMoney = false;
     bool fakeProfile = false;
     bool quitPunchview = false;

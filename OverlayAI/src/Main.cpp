@@ -22,6 +22,8 @@
 #include "Triggerbot.h"
 #include "Aimlock.h"
 #include "Bhop.h"
+#include "ThirdPerson.h"
+#include "MoneyReveal.h"
 #include "Glow.h"
 #include "Entity.h"
 #include "AntiFlash.h"
@@ -231,6 +233,7 @@ int main(int argc, char** argv) {
 
     bool running = true;
     bool insertWasDown = false;
+    bool tpWasDown = false;
     MSG msg;
     while (running) {
         while (PeekMessageW(&msg, nullptr, 0U, 0U, PM_REMOVE)) {
@@ -267,9 +270,16 @@ int main(int argc, char** argv) {
         PollTriggerbotKeyBind();
         PollAimKeyBind();
         PollBhopKeyBind();
+        PollThirdPersonKeyBind();
         bool menuKeyDown = (GetAsyncKeyState(g_App.menuToggleVk) & 0x8000) != 0;
         if (menuKeyDown && !insertWasDown)
             g_MenuOpen = !g_MenuOpen;
+
+        // Toggle third person with key (edge detection, like the menu)
+        bool tpKeyDown = (GetAsyncKeyState(g_Esp.thirdPersonKeyVk) & 0x8000) != 0;
+        if (tpKeyDown && !tpWasDown)
+            g_Esp.enableThirdperson = !g_Esp.enableThirdperson;
+        tpWasDown = tpKeyDown;
         insertWasDown = menuKeyDown;
 
         ImGui_ImplDX11_NewFrame();
@@ -340,6 +350,19 @@ int main(int argc, char** argv) {
         }
         RunBhop();
 
+        // Third-person camera patch (JE -> JNE in client.dll)
+        if (g_Esp.enableThirdperson)
+            (void)RunThirdPerson();
+        else
+            RestoreThirdPerson();
+
+        // Money reveal: patches is_hltv so the native scoreboard
+        // shows enemy team money (like in HLTV mode).
+        if (g_Esp.showMoney)
+            (void)RunMoneyReveal();
+        else
+            RestoreMoneyReveal();
+
         // Draw ESP as late as possible so rapid camera movement uses the matrix
         // closest to the frame that will actually be submitted to the compositor.
         const bool presentationActive = IsOverlayPresentationActive();
@@ -373,6 +396,8 @@ int main(int argc, char** argv) {
 
     SetMenuInputMode(false);
     ShutdownBhop();
+    RestoreThirdPerson();
+    RestoreMoneyReveal();
     RestoreAntiFlashOverrides();
     RestoreSmokeColors();
     RestoreAntiSmoke();

@@ -1677,8 +1677,17 @@ void RenderEspMenu() {
                 ImGui::Separator();
                 ImGui::Checkbox(Localized("Tercera persona##thirdperson",
                     "Enable Thirdperson##thirdperson"), &g_Esp.enableThirdperson);
-                ImGui::Checkbox(Localized("Mostrar dinero##show_money",
-                    "Show Money##show_money"), &g_Esp.showMoney);
+                if (g_Esp.waitingForThirdPersonKey)
+                    ImGui::Text(Localized("Esperando tecla...", "Waiting for key..."));
+                if (ImGui::Button(g_Esp.waitingForThirdPersonKey ? Localized("Cancelar##tp_cancel", "Cancel##tp_cancel") : Localized("Cambiar tecla##tp_key", "Change key##tp_key")))
+                    g_Esp.waitingForThirdPersonKey = true;
+                ImGui::SameLine();
+                ImGui::Text(Localized("Actual: %s", "Current: %s"), VkToString(g_Esp.thirdPersonKeyVk));
+                ImGui::TextDisabled(Localized("Presiona la tecla en juego para alternar", "Press the key in-game to toggle"));
+                ImGui::Checkbox(Localized("Mostrar dinero enemigo (scoreboard nativo)##show_money",
+                    "Reveal enemy money (native scoreboard)##show_money"), &g_Esp.showMoney);
+                ImGui::TextDisabled(Localized("Parchea is_hltv para que el scoreboard del juego muestre el dinero enemigo",
+                    "Patches is_hltv so the game scoreboard shows enemy money"));
                 ImGui::Checkbox(Localized("Perfil falso##fake_profile",
                     "Fake profile##fake_profile"), &g_Esp.fakeProfile);
 

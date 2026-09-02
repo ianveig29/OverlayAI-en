@@ -178,7 +178,10 @@ void SaveEspConfig(const char* path) {
     fprintf(f, "aim_use_scoped_fov=%d\n", g_Aim.useScopedFov ? 1 : 0);
     fprintf(f, "aim_single_scope_fov=%f\n", g_Aim.singleScopeFovDegrees);
     fprintf(f, "anti_flash_enabled=%d\n", g_Esp.enableAntiFlashbang ? 1 : 0);
-    fprintf(f, "thirdperson_enabled=%d\n", g_Esp.enableThirdperson ? 1 : 0);
+    fprintf(f, "thirdperson_enabled=%d
+", g_Esp.enableThirdperson ? 1 : 0);
+    fprintf(f, "thirdperson_key=%d
+", g_Esp.thirdPersonKeyVk);
     fprintf(f, "show_money=%d\n", g_Esp.showMoney ? 1 : 0);
     fprintf(f, "fake_profile=%d\n", g_Esp.fakeProfile ? 1 : 0);
     fprintf(f, "quit_punchview=%d\n", g_Esp.quitPunchview ? 1 : 0);
@@ -445,6 +448,8 @@ void LoadEspConfig(const char* path) {
             g_Esp.enableAntiFlashbang = i1 != 0;
         } else if (sscanf_s(p, "thirdperson_enabled=%d", &i1) == 1) {
             g_Esp.enableThirdperson = i1 != 0;
+        } else if (sscanf_s(p, "thirdperson_key=%d", &i1) == 1) {
+            g_Esp.thirdPersonKeyVk = i1;
         } else if (sscanf_s(p, "show_money=%d", &i1) == 1) {
             g_Esp.showMoney = i1 != 0;
         } else if (sscanf_s(p, "fake_profile=%d", &i1) == 1) {
