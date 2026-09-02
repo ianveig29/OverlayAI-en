@@ -56,6 +56,8 @@ OverlayAI provides the following features, all from an external process:
 - Custom crosshair
 - Spectator list (who is watching your match)
 - Bomb info on screen (time, site, defuse status)
+- Third-person camera: toggles CS2 into third-person view by patching the engine's JE check in client.dll. Uses dynamic offset derivation (dwCSGOInput + 0x228) so it survives game updates without manual offset changes. Toggle keybind (default: P) with edge detection, remappable from the menu. Does NOT work on official competitive servers.
+- Money reveal: patches the is_hltv function in client.dll so the native scoreboard shows enemy team money (like in HLTV/spectator mode). Uses pattern scanning to find the function and a 3-byte patch (MOV AL,1 + RET). Nothing is drawn by the overlay: the game's own HUD shows the values. Works on official servers.
 
 **Inventory**
 - Inventory Changer: modifies skins, knives, gloves and agents in the local inventory
