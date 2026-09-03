@@ -1,0 +1,289 @@
+===============================================================================
+  OverlayAI - Implementacion de ThirdPerson (Tercera Persona)
+===============================================================================
+
+Fecha: 2 de septiembre, 2026
+Repos: OverlayAI (español, privado) / OverlayAI-en (ingles, publico)
+Archivos: ThirdPerson.cpp, ThirdPerson.h
+
+===============================================================================
+1. COMO FUNCIONA EN CS2
+===============================================================================
+
+La tercera persona en CS2 esta controlada por DOS mecanismos en client.dll:
+
+A) VALOR DE CAMARA (4 bytes)
+   Direccion: client.dll + dwCSGOInput + 0x228
+   Valor 0    = primera persona (default)
+   Valor 256  = tercera persona
+
+   Escribimos 256 para forzar que el motor cambie la camara.
+
+B) CHEQUEO JE (1 byte)
+   Direccion: client.dll + dwThirdPersonPatch
+   Instruccion: JE (0x74) -> solo ejecuta tercera persona si se cumple cierta
+   condicion del motor.
+
+   Cambiamos 0x74 (JE) a 0x75 (JNE) para invertir el chequeo y que el
+   codigo de tercera persona siempre se ejecute.
+
+SIN el paso A, parchear el JE solo no hace nada visible porque el valor
+de la camara sigue en 0 (primera persona).
+SIN el paso B, escribir 256 solo no activa tercera persona porque el
+codigo que lee ese valor no se ejecuta.
+
+===============================================================================
+2. OFFSETS Y AUTO-ACTUALIZACION
+===============================================================================
+
+dwCSGOInput:
+  - Se obtiene del dumper de a2x (JSON)
+  - Esta integrado al sistema de auto-update de OverlayAI
+  - Se actualiza solo con cada update de CS2
+  - Valor por defecto hardcodeado: 0x23DBC70 (fallback si no hay dumper)
+
+dwThirdPersonPatch:
+  - Offset del byte JE a parchear
+  - Valor por defecto: 0xB19EB1 (fallback)
+  - NO esta en el dumper de a2x
+  - Se encuentra automaticamente via PATTERN SCANNING (ver seccion 3)
+
+0x228 (kThirdPersonValueSubOffset):
+  - Offset relativo dentro de CCSGOInput
+  - Es FIJO (no se auto-actualiza)
+  - Solo cambiaria si Valve reestructura la clase CCSGOInput internamente
+  - Eso es muy raro: Valve mueve modulos por ASLR en cada update, pero
+    la estructura interna de las clases cambia mucho menos seguido
+
+ANTES (deprecado):
+  dwThirdPersonValue era un offset absoluto hardcodeado (0x23DBE98).
+  Habia que actualizarlo manualmente con Cheat Engine en cada update de CS2.
+
+AHORA:
+  Se calcula dinamicamente: client.dll + dwCSGOInput + 0x228
+  dwCSGOInput se auto-actualiza del JSON, asi que el 90% del trabajo
+  se hace solo. Solo hay que tocar algo si Valve reestructura CCSGOInput.
+
+===============================================================================
+3. PATTERN SCANNING (busqueda de patron de bytes)
+===============================================================================
+
+El byte JE (0x74) se encuentra escaneando client.dll con un patron de bytes
+que incluye wildcards (??) para las partes que cambian entre updates.
+
+Disassembly de la zona:
+  B19EA7: 48 8B 05 9A 6A 8A 01   mov rax, [rip+0x018A6A9A]
+  B19EAE: 48 85 C0               test rax, rax
+  B19EB1: 74 40                  je +0x40    <-- TARGET (74 -> 75)
+
+Patron:  48 8B 05 ?? ?? ?? ?? 48 85 C0 74 40
+         |--------| |--------| |--------| |-----|  |-----|
+         mov rax    RIP-relative test rax   JE       jump offset
+         (fijo)    (wildcard)  (fijo)      (target) (fijo)
+
+Los 4 bytes del medio (9A 6A 8A 01) son una direccion RIP-relativa que
+cambia entre updates del juego. Se marcan como wildcards (??).
+
+El byte 0x74 (target) esta en el indice 10 del patron (12 bytes total).
+
+El escaneo lee todo client.dll a un buffer local y busca el patron.
+Si encuentra exactamente 1 coincidencia: usa esa direccion.
+Si encuentra 0 o mas de 1: muy ambiguo, cae al fallback (offset del JSON).
+
+===============================================================================
+4. ESCRITURA EN MEMORIA
+===============================================================================
+
+Byte del JE (seccion .text, read-only):
+  1. ReadProcessMemory: leer el byte actual
+  2. Confirmar que es 0x74 (JE) o 0x75 (ya parcheado por corrida previa)
+  3. VirtualProtectEx: cambiar a PAGE_EXECUTE_READWRITE
+  4. WriteProcessMemory: escribir 0x75 (JNE)
+  5. FlushInstructionCache: que la CPU vea la nueva instruccion
+  6. VirtualProtectEx: restaurar la proteccion original
+
+Valor de camara (seccion .data, read/write):
+  1. WriteProcessMemory: escribir 256 (int, 4 bytes)
+  2. No necesita VirtualProtectEx porque .data ya es read/write
+
+===============================================================================
+5. ACTIVACION Y DESACTIVACION
+===============================================================================
+
+RunThirdPerson():
+  - Si ya esta activo (g_tp.applied), no hace nada
+  - Si no, resuelve las direcciones (pattern scan o fallback JSON)
+  - Escribe 256 en el valor de camara
+  - Parchea JE (0x74) -> JNE (0x75)
+  - Marca g_tp.applied = true
+  - Retorna true si exito, false si error
+
+RestoreThirdPerson():
+  - Escribe 0 en el valor de camara (vuelve a primera persona)
+  - Restaura el byte original 0x74 (JE)
+  - Marca g_tp.applied = false
+
+IsThirdPersonActive():
+  - Retorna g_tp.applied
+
+Flujo en Main.cpp:
+  if (g_Esp.enableThirdperson)
+      RunThirdPerson();
+  else
+      RestoreThirdPerson();
+
+  En shutdown:
+      RestoreThirdPerson();
+
+El parche es toggle: se activa y desactiva sin cerrar OverlayAI.
+Al cerrar OverlayAI, RestoreThirdPerson() devuelve el juego a primera
+persona y restaura el byte original.
+
+===============================================================================
+6. KEYBIND (tecla de toggle)
+===============================================================================
+
+Toggle con tecla (por defecto: P, virtual key 0x50).
+
+Campos en Types.h (EspSettings):
+  int thirdPersonKeyVk = 0x50;        // tecla virtual (default P)
+  bool waitingForThirdPersonKey = false; // true cuando el usuario va a asignar
+
+Mecanica (identica al bhop y al menu):
+  1. El usuario presiona la tecla en juego
+  2. Edge detection: solo detecta el flanco de subida (presion -> release)
+     Esto evita que se togguee multiples veces si se mantiene apretada
+  3. Invierte g_Esp.enableThirdperson
+
+  bool tpKeyDown = (GetAsyncKeyState(g_Esp.thirdPersonKeyVk) & 0x8000) != 0;
+  if (tpKeyDown && !tpWasDown)
+      g_Esp.enableThirdperson = !g_Esp.enableThirdperson;
+  tpWasDown = tpKeyDown;
+
+Remapeo de tecla desde el menu:
+  1. El usuario clickea "Cambiar tecla" en Menu.cpp
+  2. g_Esp.waitingForThirdPersonKey = true
+  3. PollThirdPersonKeyBind() escanea todas las teclas (1..255)
+  4. Cuando el usuario presiona una, se guarda en thirdPersonKeyVk
+  5. waitingForThirdPersonKey = false
+
+Persistencia en Config.cpp:
+  Save:  fprintf(f, "thirdperson_enabled=%d\n", ...);
+         fprintf(f, "thirdperson_key=%d\n", thirdPersonKeyVk);
+  Load:  sscanf_s(p, "thirdperson_enabled=%d", &i1);
+         sscanf_s(p, "thirdperson_key=%d", &i1);
+
+===============================================================================
+7. ESTRUCTURA DE DATOS INTERNA
+===============================================================================
+
+struct ThirdPersonPatchState {
+    uintptr_t patchAddress = 0;      // Direccion del byte JE a parchear
+    uintptr_t valueAddress = 0;      // Direccion del valor de camara (0/256)
+    uint8_t   originalByte = 0;      // Byte original del JE (0x74)
+    bool      applied = false;       // true si el patch esta activo
+    bool      scanAttempted = false;  // true si ya intentamos escanear
+};
+
+g_tp: instancia global, estado del patch.
+
+  Esa estructura asegura que:
+  - El pattern scan se hace UNA sola vez (scanAttempted)
+  - Si la primera vez falla, no reintenta cada frame (evita lag)
+  - Los restores saben que byte escribir de vuelta (originalByte)
+  - El flag applied evita re-parchear algo ya parcheado
+
+===============================================================================
+8. INTEGRACION EN EL PROYECTO
+===============================================================================
+
+Archivos nuevos:
+  ThirdPerson.cpp   (logica del patch)
+  ThirdPerson.h     (API publica)
+
+Archivos modificados:
+  Types.h           (thirdPersonKeyVk, waitingForThirdPersonKey, enableThirdperson)
+  Offsets.h         (dwThirdPersonPatch, dwCSGOInput)
+  Offsets.cpp       (defaults, JSON loading, known offsets list, auto-update list, snapshot)
+  Config.cpp        (save/load thirdperson_enabled y thirdperson_key)
+  Menu.cpp          (checkbox, boton de cambiar tecla, descripcion)
+  Main.cpp          (includes, PollThirdPersonKeyBind, toggle, run/restore, shutdown)
+  OverlayAI.vcxproj (ThirdPerson.cpp/.h en el proyecto)
+
+Menu (Menu.cpp, tab de Utilidad):
+  [x] Enable Thirdperson
+  [Change key]    Current: P
+  Press the key in-game to toggle
+
+Offsets en auto-update:
+  dwCSGOInput se actualiza del JSON del dumper
+  dwThirdPersonPatch se encuentra por pattern scan (no necesita JSON)
+
+===============================================================================
+9. AVISOS IMPORTANTES
+===============================================================================
+
+NO funciona en servidores competitivos oficiales:
+  La camara en tercera persona esta controlada server-side en competitivo
+  (necesita sv_cheats). Funciona solo en partidas con bots o sv_cheats 1.
+
+Money Reveal (otra feature, IS nueva, si funciona en oficiales:
+  Pero son features distintas, no confundir.
+
+Riesgo VAC:
+  WriteProcessMemory + VirtualProtectEx en client.dll deja rastro.
+  Usar en servidores con VAC activo tiene riesgo de ban.
+
+===============================================================================
+10. DEBUG Y TROUBLESHOOTING
+===============================================================================
+
+Si tercera persona no se activa:
+
+1. Verificar que el pattern scan encontro el JE:
+   - El byly 0x74 debe estar en la direccion encontrada
+   - Si el patron cambia (update de CS2), hay que actualizar el patron
+
+2. Verificar dwCSGOInput:
+   - Debe estar en offsets.json despues del dumper
+   - Si no esta, se usa el default 0x23DBC70 (puede estar desactualizado)
+
+3. Verificar que client.dll esta cargada:
+   - mem.clientModule y mem.clientModuleSize deben ser != 0
+   - Si son 0, el Memory.cpp no encontro el modulo
+
+4. Si tercera persona se activa pero la camara no cambia:
+   - Posible que el offset 0x228 haya cambiado (CSGOInput reestructurado)
+   - Usar Cheat Engine para encontrar el nuevo offset del valor de camara
+
+5. Si el juego crashea al activar:
+   - El JE probablemente no es el correcto (multiple matches)
+   - El pattern scan devuelve 0 si encuentra mas de 1 coincidencia
+
+===============================================================================
+11. HISTORIA DE CAMBIOS
+===============================================================================
+
+v1 (inicial):
+  - dwThirdPersonValue hardcodeado (0x23DBE98)
+  - dwThirdPersonPatch hardcodeado (0xB19EB1)
+  - Habia que actualizar ambos manualmente con Cheat Engine
+
+v2 (refactor):
+  - dwThirdPersonValue removido del auto-update (no esta en el dumper a2x)
+  - Offset hardcodeado con comentarios de mantenimiento manual
+
+v3 (actual):
+  - dwThirdPersonValue reemplazado por derivacion dinamica
+  - dwCSGOInput integrado al sistema de auto-update (JSON del dumper)
+  - Offset absoluto 0x23DBE98 reemplazado por dwCSGOInput + 0x228
+  - Pattern scanning agregado como mecanismo primario para el JE
+  - Toggle keybind (default P) con edge detection
+  - Remapeo de tecla desde el menu con persistencia en config
+
+Mezclado a main en ambos repos: 2 de septiembre, 2026
+Testeado en partida con bots: camara en tercera persona funcional.
+
+===============================================================================
+FIN DEL DOCUMENTO
+===============================================================================

@@ -275,10 +275,17 @@ int main(int argc, char** argv) {
         if (menuKeyDown && !insertWasDown)
             g_MenuOpen = !g_MenuOpen;
 
-        // Toggle third person with key (edge detection, like the menu)
+        // Third-person toggle key (edge detection, like the menu).
+        // The key ONLY works while the checkbox (master enable) is ON,
+        // and it does NOT touch the checkbox: it toggles the camera directly.
+        // While a new key is being captured, the toggle is ignored.
         bool tpKeyDown = (GetAsyncKeyState(g_Esp.thirdPersonKeyVk) & 0x8000) != 0;
-        if (tpKeyDown && !tpWasDown)
-            g_Esp.enableThirdperson = !g_Esp.enableThirdperson;
+        if (tpKeyDown && !tpWasDown && g_Esp.enableThirdperson && !g_Esp.waitingForThirdPersonKey) {
+            if (IsThirdPersonActive())
+                RestoreThirdPerson();
+            else
+                (void)RunThirdPerson();
+        }
         tpWasDown = tpKeyDown;
         insertWasDown = menuKeyDown;
 
@@ -350,15 +357,23 @@ int main(int argc, char** argv) {
         }
         RunBhop();
 
-        // Third-person camera patch (JE -> JNE in client.dll)
-        if (g_Esp.enableThirdperson)
-            (void)RunThirdPerson();
-        else
-            RestoreThirdPerson();
+        // Third person: the checkbox is the master enable.
+        // Checking it activates the camera right away; unchecking
+        // restores it. The key toggles the camera without touching the checkbox.
+        static bool tpMasterPrev = false;
+        if (g_Esp.enableThirdperson != tpMasterPrev) {
+            tpMasterPrev = g_Esp.enableThirdperson;
+            if (g_Esp.enableThirdperson)
+                (void)RunThirdPerson();
+            else
+                RestoreThirdPerson();
+        }
 
-        // Money reveal: patches is_hltv so the native scoreboard
-        // shows enemy team money (like in HLTV mode).
-        if (g_Esp.showMoney)
+        // Money reveal: patches is_hltv ONLY while the scoreboard is open
+        // (Tab held). The patch makes the game believe it is an HLTV
+        // spectator, which also hides the pause menu (ESC). That is why we
+        // only keep it active while the user is looking at the scoreboard.
+        if (g_Esp.showMoney && (GetAsyncKeyState(VK_TAB) & 0x8000))
             (void)RunMoneyReveal();
         else
             RestoreMoneyReveal();

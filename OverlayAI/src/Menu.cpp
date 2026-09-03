@@ -9,6 +9,7 @@
 #include "../Glow.h"
 #include "SmokeColor.h"
 #include "Bhop.h"
+#include "ThirdPerson.h"
 #include "Stats.h"
 #include "WeaponIcons.h"
 #include "InventoryCatalog.h"
@@ -1680,14 +1681,17 @@ void RenderEspMenu() {
                 if (g_Esp.waitingForThirdPersonKey)
                     ImGui::Text(Localized("Esperando tecla...", "Waiting for key..."));
                 if (ImGui::Button(g_Esp.waitingForThirdPersonKey ? Localized("Cancelar##tp_cancel", "Cancel##tp_cancel") : Localized("Cambiar tecla##tp_key", "Change key##tp_key")))
-                    g_Esp.waitingForThirdPersonKey = true;
+                    g_Esp.waitingForThirdPersonKey = !g_Esp.waitingForThirdPersonKey;
                 ImGui::SameLine();
                 ImGui::Text(Localized("Actual: %s", "Current: %s"), VkToString(g_Esp.thirdPersonKeyVk));
-                ImGui::TextDisabled(Localized("Presiona la tecla en juego para alternar", "Press the key in-game to toggle"));
+                ImGui::Text(Localized("Camara: %s", "Camera: %s"),
+                    IsThirdPersonActive() ? Localized("tercera persona", "third person") : Localized("primera persona", "first person"));
+                ImGui::TextDisabled(Localized("El checkbox habilita la funcion; la tecla alterna la camara solo con el checkbox activado",
+                    "The checkbox enables the feature; the key toggles the camera only while the checkbox is on"));
                 ImGui::Checkbox(Localized("Mostrar dinero enemigo (scoreboard nativo)##show_money",
                     "Reveal enemy money (native scoreboard)##show_money"), &g_Esp.showMoney);
-                ImGui::TextDisabled(Localized("Parchea is_hltv para que el scoreboard del juego muestre el dinero enemigo",
-                    "Patches is_hltv so the game scoreboard shows enemy money"));
+                ImGui::TextDisabled(Localized("Parchea is_hltv mientras mantenes Tab (scoreboard). El menu de pausa (ESC) queda oculto solo con el scoreboard abierto",
+                    "Patches is_hltv while Tab is held (scoreboard). The pause menu (ESC) is only hidden while the scoreboard is open"));
                 ImGui::Checkbox(Localized("Perfil falso##fake_profile",
                     "Fake profile##fake_profile"), &g_Esp.fakeProfile);
 
