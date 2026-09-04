@@ -10,7 +10,6 @@
 #include "SmokeColor.h"
 #include "Bhop.h"
 #include "ThirdPerson.h"
-#include "ChatWheelUnbox.h"
 #include "Stats.h"
 #include "WeaponIcons.h"
 #include "InventoryCatalog.h"
@@ -1693,31 +1692,6 @@ void RenderEspMenu() {
                     "Reveal enemy money (native scoreboard)##show_money"), &g_Esp.showMoney);
                 ImGui::TextDisabled(Localized("Parchea is_hltv mientras mantenes Tab (scoreboard). El menu de pausa (ESC) queda oculto solo con el scoreboard abierto",
                     "Patches is_hltv while Tab is held (scoreboard). The pause menu (ESC) is only hidden while the scoreboard is open"));
-
-                // ============ EXPERIMENTAL MODULE (easy to remove) ============
-                // Chat wheel fake unbox: sends a fake "I opened a case and got
-                // X" message to the team chat using the native playerchatwheel
-                // command, through VConsole (TCP 127.0.0.1:29000).
-                // To remove it: delete this block + ChatWheelUnbox.cpp/.h
-                // + its 2 entries in OverlayAI.vcxproj. Nothing else.
-                ImGui::Separator();
-                ImGui::Text(Localized("Fake unbox (experimental)##unbox_title",
-                    "Fake unbox (experimental)##unbox_title"));
-                static char unboxItem[128] = "\xE2\x98\x85 Karambit | Doppler";
-                ImGui::InputText(Localized("Item##unbox_item", "Item##unbox_item"),
-                    unboxItem, sizeof(unboxItem));
-                // -1 = nothing sent yet, 0 = sent, 1 = connection failed
-                static int unboxStatus = -1;
-                if (ImGui::Button(Localized("Enviar al chat##unbox_send", "Send to chat##unbox_send")))
-                    unboxStatus = ChatWheelUnbox::SendFakeUnbox(unboxItem) == ChatWheelUnbox::Result::Sent ? 0 : 1;
-                if (unboxStatus == 0)
-                    ImGui::Text(Localized("Enviado (miralo en el chat del equipo)", "Sent (check your team chat)"));
-                else if (unboxStatus == 1)
-                    ImGui::Text(Localized("VConsole no responde (puerto 29000). Probá lanzar CS2 con -tools",
-                        "VConsole not responding (port 29000). Try launching CS2 with -tools"));
-                ImGui::TextDisabled(Localized("Solo lo ve tu equipo. Requiere la consola remota del juego",
-                    "Only your team sees it. Requires the game remote console"));
-                // ========= END EXPERIMENTAL MODULE =========
                 ImGui::Checkbox(Localized("Perfil falso##fake_profile",
                     "Fake profile##fake_profile"), &g_Esp.fakeProfile);
 
