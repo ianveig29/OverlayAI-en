@@ -159,134 +159,140 @@ namespace Offsets {
 }
 
 static void ApplyOffsetKey(const std::string& ks, uintptr_t v) {
-    if (ks == "dwEntityList") Offsets::dwEntityList = v;
-    else if (ks == "dwGameEntitySystem_highestEntityIndex") Offsets::dwGameEntitySystemHighestEntityIndex = v;
-    else if (ks == "dwViewMatrix") Offsets::dwViewMatrix = v;
-    else if (ks == "dwViewAngles") Offsets::dwViewAngles = v;
-    else if (ks == "dwViewRender") Offsets::dwViewRender = v;
-    else if (ks == "dwGlobalVars") Offsets::dwGlobalVars = v;
-    else if (ks == "dwLocalPlayerController") Offsets::dwLocalPlayerController = v;
-    else if (ks == "dwLocalPlayerPawn") Offsets::dwLocalPlayerPawn = v;
-    else if (ks == "dwWeaponC4") Offsets::dwWeaponC4 = v;
-    else if (ks == "dwThirdPersonPatch") Offsets::dwThirdPersonPatch = v;
-    else if (ks == "dwCSGOInput") Offsets::dwCSGOInput = v;
-    else if (ks == "m_iHealth") Offsets::m_iHealth = v;
-    else if (ks == "m_hPlayerPawn") Offsets::m_hPlayerPawn = v;
-    else if (ks == "m_bControllingBot") Offsets::m_bControllingBot = v;
-    else if (ks == "m_bHasFemaleVoice") Offsets::m_bHasFemaleVoice = v;
-    else if (ks == "m_iPawnHealth") Offsets::m_iPawnHealth = v;
-    else if (ks == "m_bPawnIsAlive") Offsets::m_bPawnIsAlive = v;
-    else if (ks == "m_iTeamNum") Offsets::m_iTeamNum = v;
-    else if (ks == "m_lifeState") Offsets::m_lifeState = v;
-    else if (ks == "m_pGameSceneNode") Offsets::m_pGameSceneNode = v;
-    else if (ks == "m_hOwnerEntity") Offsets::m_hOwnerEntity = v;
-    else if (ks == "m_hHudModelArms") Offsets::m_hHudModelArms = v;
-    else if (ks == "m_hMyWearables") Offsets::m_hMyWearables = v;
-    else if (ks == "m_pOwner") Offsets::m_pOwner = v;
-    else if (ks == "m_pChild") Offsets::m_pChild = v;
-    else if (ks == "m_pNextSibling") Offsets::m_pNextSibling = v;
-    else if (ks == "m_vecAbsOrigin") Offsets::m_vecAbsOrigin = v;
-    else if (ks == "m_vOldOrigin") Offsets::m_vOldOrigin = v;
-    else if (ks == "m_pBoneArray") Offsets::m_pBoneArray = v;
-    else if (ks == "m_boneStride") Offsets::m_boneStride = v;
-    else if (ks == "m_modelState") Offsets::m_modelState = v;
-    else if (ks == "m_hModel") Offsets::m_hModel = v;
-    else if (ks == "m_ModelName") Offsets::m_ModelName = v;
-    else if (ks == "m_nHitboxSet") Offsets::m_nHitboxSet = v;
-    else if (ks == "m_iConnected") Offsets::m_iConnected = v;
-    else if (ks == "m_iszPlayerName") Offsets::m_iszPlayerName = v;
-    else if (ks == "m_sSanitizedPlayerName") Offsets::m_sSanitizedPlayerName = v;
-    else if (ks == "m_bSpotted") Offsets::m_bSpotted = v;
-    else if (ks == "m_bSpottedByMask") Offsets::m_bSpottedByMask = v;
-    else if (ks == "m_pItemServices") Offsets::m_pItemServices = v;
-    else if (ks == "m_bHasDefuser") Offsets::m_bHasDefuser = v;
-    else if (ks == "m_bHasHelmet") Offsets::m_bHasHelmet = v;
-    else if (ks == "m_ArmorValue") Offsets::m_ArmorValue = v;
-    else if (ks == "m_iIDEntIndex") Offsets::m_iIDEntIndex = v;
-    else if (ks == "m_fFlags") Offsets::m_fFlags = v;
-    else if (ks == "m_pWeaponServices") Offsets::m_pWeaponServices = v;
-    else if (ks == "m_hActiveWeapon") Offsets::m_hActiveWeapon = v;
-    else if (ks == "m_nSubclassID") Offsets::m_nSubclassID = v;
-    else if (ks == "m_hViewmodelAttachment") Offsets::m_hViewmodelAttachment = v;
-    else if (ks == "m_pObserverServices") Offsets::m_pObserverServices = v;
-    else if (ks == "m_iObserverMode") Offsets::m_iObserverMode = v;
-    else if (ks == "m_hObserverTarget") Offsets::m_hObserverTarget = v;
-    else if (ks == "m_hObserverPawn") Offsets::m_hObserverPawn = v;
-    else if (ks == "m_AttributeManager") Offsets::m_AttributeManager = v;
-    else if (ks == "m_Item") Offsets::m_Item = v;
-    else if (ks == "m_iItemDefinitionIndex") Offsets::m_iItemDefinitionIndex = v;
-    else if (ks == "m_iItemIDHigh") Offsets::m_iItemIDHigh = v;
-    else if (ks == "m_iItemIDLow") Offsets::m_iItemIDLow = v;
-    else if (ks == "m_iItemID") Offsets::m_iItemID = v;
-    else if (ks == "m_iAccountID") Offsets::m_iAccountID = v;
-    else if (ks == "m_iInventoryPosition") Offsets::m_iInventoryPosition = v;
-    else if (ks == "m_iEntityQuality") Offsets::m_iEntityQuality = v;
-    else if (ks == "m_iEntityLevel") Offsets::m_iEntityLevel = v;
-    else if (ks == "m_iEntityQuantity") Offsets::m_iEntityQuantity = v;
-    else if (ks == "m_iRarityOverride") Offsets::m_iRarityOverride = v;
-    else if (ks == "m_iQualityOverride") Offsets::m_iQualityOverride = v;
-    else if (ks == "m_bInitialized") Offsets::m_bInitialized = v;
-    else if (ks == "m_bDisallowSOC") Offsets::m_bDisallowSOC = v;
-    else if (ks == "m_AttributeList") Offsets::m_AttributeList = v;
-    else if (ks == "m_NetworkedDynamicAttributes") Offsets::m_NetworkedDynamicAttributes = v;
-    else if (ks == "m_szCustomName") Offsets::m_szCustomName = v;
-    else if (ks == "m_pInventoryServices") Offsets::m_pInventoryServices = v;
-    else if (ks == "m_vecNetworkableLoadout") Offsets::m_vecNetworkableLoadout = v;
-    else if (ks == "m_unMusicID") Offsets::m_unMusicID = v;
-    else if (ks == "m_iMusicKitID") Offsets::m_iMusicKitID = v;
-    else if (ks == "m_iMusicKitMVPs") Offsets::m_iMusicKitMVPs = v;
-    else if (ks == "m_nFallbackPaintKit") Offsets::m_nFallbackPaintKit = v;
-    else if (ks == "m_nFallbackSeed") Offsets::m_nFallbackSeed = v;
-    else if (ks == "m_flFallbackWear") Offsets::m_flFallbackWear = v;
-    else if (ks == "m_nFallbackStatTrak") Offsets::m_nFallbackStatTrak = v;
-    else if (ks == "m_bNeedToReApplyGloves") Offsets::m_bNeedToReApplyGloves = v;
-    else if (ks == "m_EconGloves") Offsets::m_EconGloves = v;
-    else if (ks == "m_nEconGlovesChanged") Offsets::m_nEconGlovesChanged = v;
-    else if (ks == "m_iClip1") Offsets::m_iClip1 = v;
-    else if (ks == "m_bPawnHasDefuser") Offsets::m_bPawnHasDefuser = v;
-    else if (ks == "m_bIsScoped") Offsets::m_bIsScoped = v;
-    else if (ks == "m_zoomLevel") Offsets::m_zoomLevel = v;
-    else if (ks == "m_vecViewOffset") Offsets::m_vecViewOffset = v;
-    else if (ks == "m_bThrowAnimating") Offsets::m_bThrowAnimating = v;
-    else if (ks == "m_fThrowTime") Offsets::m_fThrowTime = v;
-    else if (ks == "m_flThrowStrength") Offsets::m_flThrowStrength = v;
-    else if (ks == "m_pCameraServices") Offsets::m_pCameraServices = v;
-    else if (ks == "m_vecCsViewPunchAngle") Offsets::m_vecCsViewPunchAngle = v;
-    else if (ks == "m_pAimPunchServices") Offsets::m_pAimPunchServices = v;
-    else if (ks == "m_predictableBaseAngle") Offsets::m_predictableBaseAngle = v;
-    else if (ks == "m_predictableBaseAngleVel") Offsets::m_predictableBaseAngleVel = v;
-    else if (ks == "m_unpredictableBaseAngle") Offsets::m_unpredictableBaseAngle = v;
-    else if (ks == "m_entitySpottedState") Offsets::m_entitySpottedState = v;
-    else if (ks == "m_Glow") Offsets::m_Glow = v;
-    else if (ks == "m_flGlowBackfaceMult") Offsets::m_flGlowBackfaceMult = v;
-    else if (ks == "glow_m_fGlowColor") Offsets::glow_m_fGlowColor = v;
-    else if (ks == "glow_m_iGlowType") Offsets::glow_m_iGlowType = v;
-    else if (ks == "glow_m_iGlowTeam") Offsets::glow_m_iGlowTeam = v;
-    else if (ks == "glow_m_nGlowRange") Offsets::glow_m_nGlowRange = v;
-    else if (ks == "glow_m_nGlowRangeMin") Offsets::glow_m_nGlowRangeMin = v;
-    else if (ks == "glow_m_glowColorOverride") Offsets::glow_m_glowColorOverride = v;
-    else if (ks == "glow_m_bFlashing") Offsets::glow_m_bFlashing = v;
-    else if (ks == "glow_m_flGlowTime") Offsets::glow_m_flGlowTime = v;
-    else if (ks == "glow_m_flGlowStartTime") Offsets::glow_m_flGlowStartTime = v;
-    else if (ks == "glow_m_bGlowing") Offsets::glow_m_bGlowing = v;
-    else if (ks == "glow_m_bEligibleForScreenHighlight") Offsets::glow_m_bEligibleForScreenHighlight = v;
-    else if (ks == "m_flFlashOverlayAlpha") Offsets::m_flFlashOverlayAlpha = v;
-    else if (ks == "m_flFlashMaxAlpha") Offsets::m_flFlashMaxAlpha = v;
-    else if (ks == "m_flFlashDuration") Offsets::m_flFlashDuration = v;
-    else if (ks == "m_flLastSmokeOverlayAlpha") Offsets::m_flLastSmokeOverlayAlpha = v;
-    else if (ks == "m_flFlashedAmount") Offsets::m_flFlashedAmount = v;
-    else if (ks == "m_bFlashing") Offsets::m_bFlashing = v;
-    else if (ks == "dwPlantedC4") Offsets::dwPlantedC4 = v;
-    else if (ks == "m_bBombTicking") Offsets::m_bBombTicking = v;
-    else if (ks == "m_nBombSite") Offsets::m_nBombSite = v;
-    else if (ks == "m_bBombDefused") Offsets::m_bBombDefused = v;
-    else if (ks == "m_hBombDefuser") Offsets::m_hBombDefuser = v;
-    else if (ks == "m_pBombDefuser") Offsets::m_pBombDefuser = v;
-    else if (ks == "m_bBombPlanted") Offsets::m_bBombPlanted = v;
-    else if (ks == "m_bBombDropped") Offsets::m_bBombDropped = v;
-    else if (ks == "m_bombsiteCenterA") Offsets::m_bombsiteCenterA = v;
-    else if (ks == "m_bombsiteCenterB") Offsets::m_bombsiteCenterB = v;
-    else if (ks == "m_flBombRadius") Offsets::m_flBombRadius = v;
+    // NOTE: every branch returns on purpose. To the compiler an "else if"
+    // is an if INSIDE the previous else: 128 chained branches are 128
+    // nesting levels, and MSVC has a limit of 128 (error C1061:
+    // "blocks nested too deeply"). Returning per branch keeps them all at
+    // nesting level 1, so this list can grow without a limit. Do not go
+    // back to "else if".
+    if (ks == "dwEntityList") { Offsets::dwEntityList = v; return; }
+    if (ks == "dwGameEntitySystem_highestEntityIndex") { Offsets::dwGameEntitySystemHighestEntityIndex = v; return; }
+    if (ks == "dwViewMatrix") { Offsets::dwViewMatrix = v; return; }
+    if (ks == "dwViewAngles") { Offsets::dwViewAngles = v; return; }
+    if (ks == "dwViewRender") { Offsets::dwViewRender = v; return; }
+    if (ks == "dwGlobalVars") { Offsets::dwGlobalVars = v; return; }
+    if (ks == "dwLocalPlayerController") { Offsets::dwLocalPlayerController = v; return; }
+    if (ks == "dwLocalPlayerPawn") { Offsets::dwLocalPlayerPawn = v; return; }
+    if (ks == "dwWeaponC4") { Offsets::dwWeaponC4 = v; return; }
+    if (ks == "dwThirdPersonPatch") { Offsets::dwThirdPersonPatch = v; return; }
+    if (ks == "dwCSGOInput") { Offsets::dwCSGOInput = v; return; }
+    if (ks == "m_iHealth") { Offsets::m_iHealth = v; return; }
+    if (ks == "m_hPlayerPawn") { Offsets::m_hPlayerPawn = v; return; }
+    if (ks == "m_bControllingBot") { Offsets::m_bControllingBot = v; return; }
+    if (ks == "m_bHasFemaleVoice") { Offsets::m_bHasFemaleVoice = v; return; }
+    if (ks == "m_iPawnHealth") { Offsets::m_iPawnHealth = v; return; }
+    if (ks == "m_bPawnIsAlive") { Offsets::m_bPawnIsAlive = v; return; }
+    if (ks == "m_iTeamNum") { Offsets::m_iTeamNum = v; return; }
+    if (ks == "m_lifeState") { Offsets::m_lifeState = v; return; }
+    if (ks == "m_pGameSceneNode") { Offsets::m_pGameSceneNode = v; return; }
+    if (ks == "m_hOwnerEntity") { Offsets::m_hOwnerEntity = v; return; }
+    if (ks == "m_hHudModelArms") { Offsets::m_hHudModelArms = v; return; }
+    if (ks == "m_hMyWearables") { Offsets::m_hMyWearables = v; return; }
+    if (ks == "m_pOwner") { Offsets::m_pOwner = v; return; }
+    if (ks == "m_pChild") { Offsets::m_pChild = v; return; }
+    if (ks == "m_pNextSibling") { Offsets::m_pNextSibling = v; return; }
+    if (ks == "m_vecAbsOrigin") { Offsets::m_vecAbsOrigin = v; return; }
+    if (ks == "m_vOldOrigin") { Offsets::m_vOldOrigin = v; return; }
+    if (ks == "m_pBoneArray") { Offsets::m_pBoneArray = v; return; }
+    if (ks == "m_boneStride") { Offsets::m_boneStride = v; return; }
+    if (ks == "m_modelState") { Offsets::m_modelState = v; return; }
+    if (ks == "m_hModel") { Offsets::m_hModel = v; return; }
+    if (ks == "m_ModelName") { Offsets::m_ModelName = v; return; }
+    if (ks == "m_nHitboxSet") { Offsets::m_nHitboxSet = v; return; }
+    if (ks == "m_iConnected") { Offsets::m_iConnected = v; return; }
+    if (ks == "m_iszPlayerName") { Offsets::m_iszPlayerName = v; return; }
+    if (ks == "m_sSanitizedPlayerName") { Offsets::m_sSanitizedPlayerName = v; return; }
+    if (ks == "m_bSpotted") { Offsets::m_bSpotted = v; return; }
+    if (ks == "m_bSpottedByMask") { Offsets::m_bSpottedByMask = v; return; }
+    if (ks == "m_pItemServices") { Offsets::m_pItemServices = v; return; }
+    if (ks == "m_bHasDefuser") { Offsets::m_bHasDefuser = v; return; }
+    if (ks == "m_bHasHelmet") { Offsets::m_bHasHelmet = v; return; }
+    if (ks == "m_ArmorValue") { Offsets::m_ArmorValue = v; return; }
+    if (ks == "m_iIDEntIndex") { Offsets::m_iIDEntIndex = v; return; }
+    if (ks == "m_fFlags") { Offsets::m_fFlags = v; return; }
+    if (ks == "m_pWeaponServices") { Offsets::m_pWeaponServices = v; return; }
+    if (ks == "m_hActiveWeapon") { Offsets::m_hActiveWeapon = v; return; }
+    if (ks == "m_nSubclassID") { Offsets::m_nSubclassID = v; return; }
+    if (ks == "m_hViewmodelAttachment") { Offsets::m_hViewmodelAttachment = v; return; }
+    if (ks == "m_pObserverServices") { Offsets::m_pObserverServices = v; return; }
+    if (ks == "m_iObserverMode") { Offsets::m_iObserverMode = v; return; }
+    if (ks == "m_hObserverTarget") { Offsets::m_hObserverTarget = v; return; }
+    if (ks == "m_hObserverPawn") { Offsets::m_hObserverPawn = v; return; }
+    if (ks == "m_AttributeManager") { Offsets::m_AttributeManager = v; return; }
+    if (ks == "m_Item") { Offsets::m_Item = v; return; }
+    if (ks == "m_iItemDefinitionIndex") { Offsets::m_iItemDefinitionIndex = v; return; }
+    if (ks == "m_iItemIDHigh") { Offsets::m_iItemIDHigh = v; return; }
+    if (ks == "m_iItemIDLow") { Offsets::m_iItemIDLow = v; return; }
+    if (ks == "m_iItemID") { Offsets::m_iItemID = v; return; }
+    if (ks == "m_iAccountID") { Offsets::m_iAccountID = v; return; }
+    if (ks == "m_iInventoryPosition") { Offsets::m_iInventoryPosition = v; return; }
+    if (ks == "m_iEntityQuality") { Offsets::m_iEntityQuality = v; return; }
+    if (ks == "m_iEntityLevel") { Offsets::m_iEntityLevel = v; return; }
+    if (ks == "m_iEntityQuantity") { Offsets::m_iEntityQuantity = v; return; }
+    if (ks == "m_iRarityOverride") { Offsets::m_iRarityOverride = v; return; }
+    if (ks == "m_iQualityOverride") { Offsets::m_iQualityOverride = v; return; }
+    if (ks == "m_bInitialized") { Offsets::m_bInitialized = v; return; }
+    if (ks == "m_bDisallowSOC") { Offsets::m_bDisallowSOC = v; return; }
+    if (ks == "m_AttributeList") { Offsets::m_AttributeList = v; return; }
+    if (ks == "m_NetworkedDynamicAttributes") { Offsets::m_NetworkedDynamicAttributes = v; return; }
+    if (ks == "m_szCustomName") { Offsets::m_szCustomName = v; return; }
+    if (ks == "m_pInventoryServices") { Offsets::m_pInventoryServices = v; return; }
+    if (ks == "m_vecNetworkableLoadout") { Offsets::m_vecNetworkableLoadout = v; return; }
+    if (ks == "m_unMusicID") { Offsets::m_unMusicID = v; return; }
+    if (ks == "m_iMusicKitID") { Offsets::m_iMusicKitID = v; return; }
+    if (ks == "m_iMusicKitMVPs") { Offsets::m_iMusicKitMVPs = v; return; }
+    if (ks == "m_nFallbackPaintKit") { Offsets::m_nFallbackPaintKit = v; return; }
+    if (ks == "m_nFallbackSeed") { Offsets::m_nFallbackSeed = v; return; }
+    if (ks == "m_flFallbackWear") { Offsets::m_flFallbackWear = v; return; }
+    if (ks == "m_nFallbackStatTrak") { Offsets::m_nFallbackStatTrak = v; return; }
+    if (ks == "m_bNeedToReApplyGloves") { Offsets::m_bNeedToReApplyGloves = v; return; }
+    if (ks == "m_EconGloves") { Offsets::m_EconGloves = v; return; }
+    if (ks == "m_nEconGlovesChanged") { Offsets::m_nEconGlovesChanged = v; return; }
+    if (ks == "m_iClip1") { Offsets::m_iClip1 = v; return; }
+    if (ks == "m_bPawnHasDefuser") { Offsets::m_bPawnHasDefuser = v; return; }
+    if (ks == "m_bIsScoped") { Offsets::m_bIsScoped = v; return; }
+    if (ks == "m_zoomLevel") { Offsets::m_zoomLevel = v; return; }
+    if (ks == "m_vecViewOffset") { Offsets::m_vecViewOffset = v; return; }
+    if (ks == "m_bThrowAnimating") { Offsets::m_bThrowAnimating = v; return; }
+    if (ks == "m_fThrowTime") { Offsets::m_fThrowTime = v; return; }
+    if (ks == "m_flThrowStrength") { Offsets::m_flThrowStrength = v; return; }
+    if (ks == "m_pCameraServices") { Offsets::m_pCameraServices = v; return; }
+    if (ks == "m_vecCsViewPunchAngle") { Offsets::m_vecCsViewPunchAngle = v; return; }
+    if (ks == "m_pAimPunchServices") { Offsets::m_pAimPunchServices = v; return; }
+    if (ks == "m_predictableBaseAngle") { Offsets::m_predictableBaseAngle = v; return; }
+    if (ks == "m_predictableBaseAngleVel") { Offsets::m_predictableBaseAngleVel = v; return; }
+    if (ks == "m_unpredictableBaseAngle") { Offsets::m_unpredictableBaseAngle = v; return; }
+    if (ks == "m_entitySpottedState") { Offsets::m_entitySpottedState = v; return; }
+    if (ks == "m_Glow") { Offsets::m_Glow = v; return; }
+    if (ks == "m_flGlowBackfaceMult") { Offsets::m_flGlowBackfaceMult = v; return; }
+    if (ks == "glow_m_fGlowColor") { Offsets::glow_m_fGlowColor = v; return; }
+    if (ks == "glow_m_iGlowType") { Offsets::glow_m_iGlowType = v; return; }
+    if (ks == "glow_m_iGlowTeam") { Offsets::glow_m_iGlowTeam = v; return; }
+    if (ks == "glow_m_nGlowRange") { Offsets::glow_m_nGlowRange = v; return; }
+    if (ks == "glow_m_nGlowRangeMin") { Offsets::glow_m_nGlowRangeMin = v; return; }
+    if (ks == "glow_m_glowColorOverride") { Offsets::glow_m_glowColorOverride = v; return; }
+    if (ks == "glow_m_bFlashing") { Offsets::glow_m_bFlashing = v; return; }
+    if (ks == "glow_m_flGlowTime") { Offsets::glow_m_flGlowTime = v; return; }
+    if (ks == "glow_m_flGlowStartTime") { Offsets::glow_m_flGlowStartTime = v; return; }
+    if (ks == "glow_m_bGlowing") { Offsets::glow_m_bGlowing = v; return; }
+    if (ks == "glow_m_bEligibleForScreenHighlight") { Offsets::glow_m_bEligibleForScreenHighlight = v; return; }
+    if (ks == "m_flFlashOverlayAlpha") { Offsets::m_flFlashOverlayAlpha = v; return; }
+    if (ks == "m_flFlashMaxAlpha") { Offsets::m_flFlashMaxAlpha = v; return; }
+    if (ks == "m_flFlashDuration") { Offsets::m_flFlashDuration = v; return; }
+    if (ks == "m_flLastSmokeOverlayAlpha") { Offsets::m_flLastSmokeOverlayAlpha = v; return; }
+    if (ks == "m_flFlashedAmount") { Offsets::m_flFlashedAmount = v; return; }
+    if (ks == "m_bFlashing") { Offsets::m_bFlashing = v; return; }
+    if (ks == "dwPlantedC4") { Offsets::dwPlantedC4 = v; return; }
+    if (ks == "m_bBombTicking") { Offsets::m_bBombTicking = v; return; }
+    if (ks == "m_nBombSite") { Offsets::m_nBombSite = v; return; }
+    if (ks == "m_bBombDefused") { Offsets::m_bBombDefused = v; return; }
+    if (ks == "m_hBombDefuser") { Offsets::m_hBombDefuser = v; return; }
+    if (ks == "m_pBombDefuser") { Offsets::m_pBombDefuser = v; return; }
+    if (ks == "m_bBombPlanted") { Offsets::m_bBombPlanted = v; return; }
+    if (ks == "m_bBombDropped") { Offsets::m_bBombDropped = v; return; }
+    if (ks == "m_bombsiteCenterA") { Offsets::m_bombsiteCenterA = v; return; }
+    if (ks == "m_bombsiteCenterB") { Offsets::m_bombsiteCenterB = v; return; }
+    if (ks == "m_flBombRadius") { Offsets::m_flBombRadius = v; return; }
 }
 
 void LoadOffsetsFromFile(const char* path) {
