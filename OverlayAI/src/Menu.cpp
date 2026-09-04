@@ -1653,16 +1653,6 @@ void RenderEspMenu() {
                     };
                     ImGui::Combo("Mostrar trayectoria", &g_Esp.grenadeTrajectoryMode,
                         trajectoryModes, 2);
-                    // Live calibration: the community reference uses
-                    // 1090 u/s and gravity 800, but even its author admits
-                    // they are not exact. These sliders let you match the
-                    // game's native trajectory (sv_grenade_trajectory 1 in a
-                    // practice match) without recompiling.
-                    ImGui::SliderFloat("Throw speed##grenade_speed",
-                        &g_Esp.grenadeThrowSpeed, 500.0f, 1500.0f, "%.0f u/s");
-                    ImGui::SliderFloat("Gravity##grenade_gravity",
-                        &g_Esp.grenadeGravity, 200.0f, 1200.0f, "%.0f u/s2");
-                    ImGui::TextDisabled("Calibrate in practice with: sv_grenade_trajectory 1");
                 }
 
                 ImGui::Separator();
