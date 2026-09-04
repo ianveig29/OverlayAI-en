@@ -120,6 +120,13 @@ struct EspSettings {
     bool showGrenadeTrajectory = false;
     // 0 = whenever a grenade is equipped, 1 = only while holding a throw button.
     int grenadeTrajectoryMode = 0;
+    // Grenade trajectory calibration (adjustable from the menu).
+    // Base throw speed at full strength (community reference: 1090 u/s
+    // for CS2) and effective projectile gravity (default sv_gravity:
+    // 800 u/s^2). Fine-tune them live against the game's native
+    // trajectory (sv_grenade_trajectory 1 in a practice match).
+    float grenadeThrowSpeed = 1090.0f;
+    float grenadeGravity = 800.0f;
     // Aimlock calibrator toggle shown in Misc
     bool enableAimlockCalibrator = false;
     // Flash/smoke thresholds

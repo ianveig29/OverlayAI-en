@@ -107,7 +107,13 @@ void RenderGrenadeTrajectory(int screenWidth, int screenHeight) {
     // the game's native preview (community research, UnknownCheats).
     // Full LMB hold: strength=1 -> 1090 u/s.
     // Previously 750*0.9=675 was used, which made the arc way too flat.
-    const float throwSpeed = (0.7f + 0.3f * strength) * 1090.0f;
+    // Initial throw velocity. Formula from the community reference
+    // (UnknownCheats, Celse2021): (strength * 0.7 + 0.3) * 1090.
+    // Full LMB throw: strength=1 -> 1090 u/s; short RMB throw: -> 327 u/s.
+    // NOTE: the factor order matters. The previous version used
+    // (0.7 + 0.3 * strength), which only matches at full strength and
+    // misses medium and short throws.
+    const float throwSpeed = (strength * 0.7f + 0.3f) * g_Esp.grenadeThrowSpeed;
     Vector3 velocity{
         forward.x * throwSpeed,
         forward.y * throwSpeed,
@@ -125,7 +131,11 @@ void RenderGrenadeTrajectory(int screenWidth, int screenHeight) {
     // Grenades have no air drag in Source 2: only gravity.
     // Previously 320 was used, which is why the arc barely dropped
     // (it looked like it only moved along X and Y).
-    constexpr float gravity = 800.0f;
+    // Effective projectile gravity. Community reference: 800 (default
+    // sv_gravity, no air drag in Source 2). If the arc does not match the
+    // game's native trajectory (sv_grenade_trajectory 1 in a practice
+    // match), fine-tune it live from the menu until both lines overlap.
+    const float gravity = g_Esp.grenadeGravity;
     const float groundHeight = origin.z + 2.0f;
     // Molotov and incendiary break on first contact: they don't bounce.
     const bool isMolotov = (weaponInfo.definitionIndex == 46 || weaponInfo.definitionIndex == 48);
