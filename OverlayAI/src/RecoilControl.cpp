@@ -34,6 +34,10 @@ namespace {
     // is imperceptible and the write is not worth it.
     constexpr float kMinDeltaDegrees = 0.01f;
 
+    // Ceiling for a legitimate per-frame delta (degrees). A larger delta
+    // is not real recoil but a bad read; explained in RunRCS.
+    constexpr float kMaxDeltaPerFrameDegrees = 5.0f;
+
     // Returns the local player's pawn (same criteria as AntiFlash).
     uintptr_t GetLocalPawnFromSnapshot() {
         const uintptr_t pawn = GetCurrentFrameSnapshot().localPawn;
@@ -98,17 +102,49 @@ void RunRCS() {
         (g_Aim.rcsStrengthPercent > 100) ? 100.0f :
         static_cast<float>(g_Aim.rcsStrengthPercent) / 100.0f;
 
-    Vector3 delta{
-        (punch.x - g_prevPunch.x) * strength,
-        (punch.y - g_prevPunch.y) * strength,
-        (punch.z - g_prevPunch.z) * strength
+    const Vector3 rawDelta{
+        punch.x - g_prevPunch.x,
+        punch.y - g_prevPunch.y,
+        punch.z - g_prevPunch.z
     };
-    g_prevPunch = punch;
+    const Vector3 delta{
+        rawDelta.x * strength,
+        rawDelta.y * strength,
+        rawDelta.z * strength
+    };
 
     // Nothing to compensate (the punch did not change): do not write.
     if (std::fabs(delta.x) < kMinDeltaDegrees &&
         std::fabs(delta.y) < kMinDeltaDegrees &&
-        std::fabs(delta.z) < kMinDeltaDegrees) return;
+        std::fabs(delta.z) < kMinDeltaDegrees) {
+        g_prevPunch = punch;
+        return;
+    }
+
+    // Guard against glitch reads (real-world case documented in public
+    // cheats like deadlocked): mid-spray the game can report a FAKE punch
+    // for one frame, typically (0,0,0). Without this guard that
+    // accumulated delta would be applied at once and the aim would yank
+    // UP several degrees in a single frame (the "possessed camera"
+    // effect). Legitimate ceiling: the AK fires 10 shots per second; even
+    // at low FPS the real punch grows a fraction of a degree per frame. A
+    // 5-degree delta in one frame is not recoil: it is a bad read.
+    if (std::fabs(rawDelta.x) > kMaxDeltaPerFrameDegrees ||
+        std::fabs(rawDelta.y) > kMaxDeltaPerFrameDegrees ||
+        std::fabs(rawDelta.z) > kMaxDeltaPerFrameDegrees) {
+        // Punch read as exactly zero with a high reference: it is the
+        // transient glitch. Discard the WHOLE frame (no write, no
+        // reference update), same as deadlocked does: when the real
+        // value comes back the delta is 0 and there is no jump.
+        if (punch.x == 0.0f && punch.y == 0.0f && punch.z == 0.0f) return;
+        // If instead it is a real jump (RCS enabled in the middle of an
+        // already advanced spray), sync the reference without writing:
+        // compensation starts from the current state, no yank.
+        g_prevPunch = punch;
+        return;
+    }
+
+    g_prevPunch = punch;
 
     // Never move the aim while the cheat menu is open. The punch was
     // already updated above (g_prevPunch), so when the menu closes there
