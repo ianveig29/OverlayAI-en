@@ -103,7 +103,11 @@ void RenderGrenadeTrajectory(int screenWidth, int screenHeight) {
         origin.y + viewOffset.y + forward.y * 16.0f,
         origin.z + viewOffset.z + strength * 12.0f - 12.0f + forward.z * 16.0f
     };
-    const float throwSpeed = 750.0f * 0.9f * (0.7f + 0.3f * strength);
+    // Initial throw velocity. The 1090 constant was verified against
+    // the game's native preview (community research, UnknownCheats).
+    // Full LMB hold: strength=1 -> 1090 u/s.
+    // Previously 750*0.9=675 was used, which made the arc way too flat.
+    const float throwSpeed = (0.7f + 0.3f * strength) * 1090.0f;
     Vector3 velocity{
         forward.x * throwSpeed,
         forward.y * throwSpeed,
@@ -117,8 +121,14 @@ void RenderGrenadeTrajectory(int screenWidth, int screenHeight) {
     }
 
     constexpr float timeStep = 1.0f / 64.0f;
-    constexpr float gravity = 320.0f;
+    // Default sv_gravity of the game: 800 u/s^2.
+    // Grenades have no air drag in Source 2: only gravity.
+    // Previously 320 was used, which is why the arc barely dropped
+    // (it looked like it only moved along X and Y).
+    constexpr float gravity = 800.0f;
     const float groundHeight = origin.z + 2.0f;
+    // Molotov and incendiary break on first contact: they don't bounce.
+    const bool isMolotov = (weaponInfo.definitionIndex == 46 || weaponInfo.definitionIndex == 48);
     const int maxSteps = static_cast<int>(GetFlightTime(weaponInfo.definitionIndex) / timeStep);
     std::vector<Vector3> points;
     points.reserve(maxSteps / 2 + 2);
@@ -132,6 +142,12 @@ void RenderGrenadeTrajectory(int screenWidth, int screenHeight) {
         velocity.z -= gravity * timeStep;
 
         if (next.z < groundHeight && velocity.z < 0.0f) {
+            // Molotov/incendiary: ends on first contact with the floor.
+            if (isMolotov) {
+                position = next;
+                points.push_back(position);
+                break;
+            }
             next.z = groundHeight;
             velocity.x *= 0.62f;
             velocity.y *= 0.62f;
