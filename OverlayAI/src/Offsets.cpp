@@ -105,9 +105,6 @@ namespace Offsets {
     uintptr_t m_bThrowAnimating = 0x1CE5;
     uintptr_t m_fThrowTime = 0x1CE8;
     uintptr_t m_flThrowStrength = 0x1CF0;
-    // Quit punchview (CPlayer_CameraServices).
-    uintptr_t m_pCameraServices = 0x1240;
-    uintptr_t m_vecCsViewPunchAngle = 0x48;
     // Quit aim punch (CCSPlayer_AimPunchServices).
     uintptr_t m_pAimPunchServices = 0x14B8;
     uintptr_t m_predictableBaseAngle = 0x50;
@@ -256,8 +253,6 @@ static void ApplyOffsetKey(const std::string& ks, uintptr_t v) {
     if (ks == "m_bThrowAnimating") { Offsets::m_bThrowAnimating = v; return; }
     if (ks == "m_fThrowTime") { Offsets::m_fThrowTime = v; return; }
     if (ks == "m_flThrowStrength") { Offsets::m_flThrowStrength = v; return; }
-    if (ks == "m_pCameraServices") { Offsets::m_pCameraServices = v; return; }
-    if (ks == "m_vecCsViewPunchAngle") { Offsets::m_vecCsViewPunchAngle = v; return; }
     if (ks == "m_pAimPunchServices") { Offsets::m_pAimPunchServices = v; return; }
     if (ks == "m_predictableBaseAngle") { Offsets::m_predictableBaseAngle = v; return; }
     if (ks == "m_predictableBaseAngleVel") { Offsets::m_predictableBaseAngleVel = v; return; }
@@ -367,7 +362,7 @@ void LoadOffsetsFromJSON(const char* path) {
         "m_pObserverServices", "m_iObserverMode", "m_hObserverTarget", "m_hObserverPawn",
         "m_AttributeManager", "m_Item", "m_iItemDefinitionIndex", "m_iItemIDHigh",
         "m_nFallbackPaintKit", "m_nFallbackSeed", "m_flFallbackWear", "m_nFallbackStatTrak", "m_bNeedToReApplyGloves", "m_EconGloves", "m_nEconGlovesChanged", "m_iClip1",
-        "m_bPawnHasDefuser", "m_bIsScoped", "m_zoomLevel", "m_vecViewOffset", "m_bThrowAnimating", "m_fThrowTime", "m_flThrowStrength", "m_pCameraServices", "m_vecCsViewPunchAngle", "m_pAimPunchServices", "m_predictableBaseAngle", "m_predictableBaseAngleVel", "m_unpredictableBaseAngle",
+        "m_bPawnHasDefuser", "m_bIsScoped", "m_zoomLevel", "m_vecViewOffset", "m_bThrowAnimating", "m_fThrowTime", "m_flThrowStrength", "m_pAimPunchServices", "m_predictableBaseAngle", "m_predictableBaseAngleVel", "m_unpredictableBaseAngle",
         "m_Glow", "m_flGlowBackfaceMult", "glow_m_fGlowColor", "glow_m_iGlowType", "glow_m_iGlowTeam", "glow_m_nGlowRange",
         "glow_m_nGlowRangeMin", "glow_m_glowColorOverride", "glow_m_bFlashing", "glow_m_flGlowTime", "glow_m_flGlowStartTime", "glow_m_bGlowing", "glow_m_bEligibleForScreenHighlight",
         "m_flFlashOverlayAlpha", "m_flFlashMaxAlpha", "m_flFlashDuration", "m_flLastSmokeOverlayAlpha", "m_flFlashedAmount", "m_bFlashing",
@@ -439,9 +434,6 @@ void LoadClientSchemaOffsetsFromJSON(const char* path) {
     parseClassField("C_BasePlayerPawn", "m_pItemServices", Offsets::m_pItemServices);
     parseClassField("C_BasePlayerPawn", "m_pWeaponServices", Offsets::m_pWeaponServices);
     parseClassField("C_BasePlayerPawn", "m_pObserverServices", Offsets::m_pObserverServices);
-    // Quit punchview: camera services and kick angle.
-    parseClassField("C_BasePlayerPawn", "m_pCameraServices", Offsets::m_pCameraServices);
-    parseClassField("CPlayer_CameraServices", "m_vecCsViewPunchAngle", Offsets::m_vecCsViewPunchAngle);
     // Quit aim punch: aim punch services and their base angles.
     parseClassField("C_CSPlayerPawn", "m_pAimPunchServices", Offsets::m_pAimPunchServices);
     parseClassField("CCSPlayer_AimPunchServices", "m_predictableBaseAngle", Offsets::m_predictableBaseAngle);

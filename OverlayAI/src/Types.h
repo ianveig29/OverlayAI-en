@@ -152,7 +152,6 @@ struct EspSettings {
     bool waitingForThirdPersonKey = false; // true when user is about to assign key
     bool showMoney = false;
     bool fakeProfile = false;
-    bool quitPunchview = false;
 };
 
 struct AppSettings {

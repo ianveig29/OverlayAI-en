@@ -10,7 +10,6 @@
 #include "SmokeColor.h"
 #include "Bhop.h"
 #include "ThirdPerson.h"
-#include "PunchView.h"
 #include "RecoilControl.h"
 #include "Stats.h"
 #include "WeaponIcons.h"
@@ -761,16 +760,6 @@ void RenderEspMenu() {
                     }
                 }
                 openVisualSectionsOnLaunch = false;
-
-                ImGui::Separator();
-                ImGui::Checkbox(Localized("Quitar Punchview##quit_punchview",
-                    "Quit Punchview##quit_punchview"), &g_Esp.quitPunchview);
-                // Explains what it does and does NOT do, and shows the
-                // correction counter as proof that it is active.
-                ImGui::TextDisabled(Localized("Anula el tiron de camara al recibir disparos o explosiones. Solo visual: el retroceso de tus propias balas no cambia.",
-                    "Neutralizes the camera kick from damage or explosions. Visual only: your own recoil is unchanged."));
-                if (g_Esp.quitPunchview)
-                    ImGui::Text("Kicks neutralized: %u", GetPunchViewCorrectionCount());
 
                 ImGui::EndTabItem();
             }

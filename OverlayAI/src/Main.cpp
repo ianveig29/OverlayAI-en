@@ -27,7 +27,6 @@
 #include "Glow.h"
 #include "Entity.h"
 #include "AntiFlash.h"
-#include "PunchView.h"
 #include "RecoilControl.h"
 #include "AntiSmoke.h"
 #include "SmokeColor.h"
@@ -359,13 +358,8 @@ int main(int argc, char** argv) {
         }
         RunBhop();
 
-        // RCS: compensates recoil into the view angles. Runs FIRST to
-        // read the REAL punch before Quit Aim Punch zeroes it out.
+        // RCS: compensates recoil into the view angles every frame.
         RunRCS();
-
-        // Quit Punchview: neutralizes the damage camera kick while
-        // enabled. Called every frame (same as Anti Flash).
-        RunQuitPunchview();
 
         // Third person: the checkbox is the master enable.
         // Checking it activates the camera right away; unchecking
