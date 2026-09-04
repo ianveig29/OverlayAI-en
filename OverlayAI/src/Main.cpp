@@ -27,6 +27,7 @@
 #include "Glow.h"
 #include "Entity.h"
 #include "AntiFlash.h"
+#include "PunchView.h"
 #include "AntiSmoke.h"
 #include "SmokeColor.h"
 #include "OtherGlow.h"
@@ -356,6 +357,10 @@ int main(int argc, char** argv) {
             RestoreAntiFlashOverrides();
         }
         RunBhop();
+
+        // Quit Punchview: neutralizes the damage camera kick while
+        // enabled. Called every frame (same as Anti Flash).
+        RunQuitPunchview();
 
         // Third person: the checkbox is the master enable.
         // Checking it activates the camera right away; unchecking

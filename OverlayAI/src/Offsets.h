@@ -115,6 +115,9 @@ namespace Offsets {
     extern uintptr_t m_bThrowAnimating;
     extern uintptr_t m_fThrowTime;
     extern uintptr_t m_flThrowStrength;
+    // Quit punchview: camera services and the view punch angle.
+    extern uintptr_t m_pCameraServices;
+    extern uintptr_t m_vecCsViewPunchAngle;
 
     extern uintptr_t m_Glow;
     extern uintptr_t m_flGlowBackfaceMult;
