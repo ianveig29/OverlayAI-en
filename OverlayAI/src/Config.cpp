@@ -183,6 +183,7 @@ void SaveEspConfig(const char* path) {
     fprintf(f, "show_money=%d\n", g_Esp.showMoney ? 1 : 0);
     fprintf(f, "fake_profile=%d\n", g_Esp.fakeProfile ? 1 : 0);
     fprintf(f, "quit_punchview=%d\n", g_Esp.quitPunchview ? 1 : 0);
+    fprintf(f, "quit_aim_punch=%d\n", g_Esp.quitAimPunch ? 1 : 0);
     fprintf(f, "rcs_enabled=%d\n", g_Aim.recoilControlSystem ? 1 : 0);
     fprintf(f, "flash_opacity_percent=%d\n", g_Esp.antiFlashOpacityPercent);
     fprintf(f, "flash_threshold=%f\n", g_Esp.flashThreshold);
@@ -454,6 +455,8 @@ void LoadEspConfig(const char* path) {
             g_Esp.fakeProfile = i1 != 0;
         } else if (sscanf_s(p, "quit_punchview=%d", &i1) == 1) {
             g_Esp.quitPunchview = i1 != 0;
+        } else if (sscanf_s(p, "quit_aim_punch=%d", &i1) == 1) {
+            g_Esp.quitAimPunch = i1 != 0;
         } else if (sscanf_s(p, "rcs_enabled=%d", &i1) == 1) {
             g_Aim.recoilControlSystem = i1 != 0;
         } else if (sscanf_s(p, "flash_opacity_percent=%d", &i1) == 1) {

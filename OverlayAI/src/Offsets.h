@@ -118,6 +118,11 @@ namespace Offsets {
     // Quit punchview: camera services and the view punch angle.
     extern uintptr_t m_pCameraServices;
     extern uintptr_t m_vecCsViewPunchAngle;
+    // Quit aim punch: aim punch services and their base angles.
+    extern uintptr_t m_pAimPunchServices;
+    extern uintptr_t m_predictableBaseAngle;
+    extern uintptr_t m_predictableBaseAngleVel;
+    extern uintptr_t m_unpredictableBaseAngle;
 
     extern uintptr_t m_Glow;
     extern uintptr_t m_flGlowBackfaceMult;

@@ -771,6 +771,16 @@ void RenderEspMenu() {
                 if (g_Esp.quitPunchview)
                     ImGui::Text("Kicks neutralized: %u", GetPunchViewCorrectionCount());
 
+                // Aim punch: the VISUAL recoil of your own shots.
+                ImGui::Checkbox(Localized("Quitar Aim Punch##quit_aim_punch",
+                    "Quit Aim Punch##quit_aim_punch"), &g_Esp.quitAimPunch);
+                // Clear warning: the crosshair stops showing recoil,
+                // but bullets still follow the server's real pattern.
+                ImGui::TextDisabled(Localized("Esconde el retroceso VISUAL de tus disparos. OJO: las balas siguen el patron real del servidor, controla el spray de memoria.",
+                    "Hides the VISUAL recoil of your shots. WARNING: bullets still follow the server's real pattern, control the spray from memory."));
+                if (g_Esp.quitAimPunch)
+                    ImGui::Text("Aim punch neutralized: %u", GetAimPunchCorrectionCount());
+
                 ImGui::EndTabItem();
             }
 
