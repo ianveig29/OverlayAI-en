@@ -3,6 +3,7 @@
 #include "Entity.h"
 #include "Memory.h"
 #include "Offsets.h"
+#include "Config.h"
 
 #include <cmath>
 

@@ -38,7 +38,7 @@
 //
 // STRENGTH (slider):
 // 100% = perfect compensation (robotic, noticeable in demos).
-~ 60% = compensates most of it but looks more human.
+// ~60% = compensates most of it but looks more human.
 //
 // WARNING: unlike reading ESP, this WRITES to the game's view angles
 // every frame while you shoot. It is the most "active" feature in the
