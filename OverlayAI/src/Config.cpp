@@ -185,6 +185,7 @@ void SaveEspConfig(const char* path) {
     fprintf(f, "quit_punchview=%d\n", g_Esp.quitPunchview ? 1 : 0);
     fprintf(f, "quit_aim_punch=%d\n", g_Esp.quitAimPunch ? 1 : 0);
     fprintf(f, "rcs_enabled=%d\n", g_Aim.recoilControlSystem ? 1 : 0);
+    fprintf(f, "rcs_strength=%d\n", g_Aim.rcsStrengthPercent);
     fprintf(f, "flash_opacity_percent=%d\n", g_Esp.antiFlashOpacityPercent);
     fprintf(f, "flash_threshold=%f\n", g_Esp.flashThreshold);
     fprintf(f, "aim_allow_flashed=%d\n", g_Aim.allowWhenFlashed ? 1 : 0);
@@ -459,6 +460,8 @@ void LoadEspConfig(const char* path) {
             g_Esp.quitAimPunch = i1 != 0;
         } else if (sscanf_s(p, "rcs_enabled=%d", &i1) == 1) {
             g_Aim.recoilControlSystem = i1 != 0;
+        } else if (sscanf_s(p, "rcs_strength=%d", &i1) == 1) {
+            if (i1 >= 0 && i1 <= 100) g_Aim.rcsStrengthPercent = i1;
         } else if (sscanf_s(p, "flash_opacity_percent=%d", &i1) == 1) {
             if (i1 >= 0 && i1 <= 100) g_Esp.antiFlashOpacityPercent = i1;
         } else if (sscanf_s(p, "flash_threshold=%f", &f1) == 1) {

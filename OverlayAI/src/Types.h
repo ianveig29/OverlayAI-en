@@ -211,6 +211,8 @@ struct AimSettings {
     // Allow aimlock when flashed/in smoke
     bool allowWhenFlashed = false;
     bool allowWhenInSmoke = false;
-    // UI placeholder flag
+    // Recoil Control System (RCS). Implemented in RecoilControl.cpp.
     bool recoilControlSystem = false;
+    // RCS compensation strength in percent (100 = perfect).
+    int rcsStrengthPercent = 100;
 };

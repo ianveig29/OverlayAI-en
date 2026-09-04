@@ -175,6 +175,7 @@
     <ClCompile Include="src\ThirdPerson.cpp" />
     <ClCompile Include="src\MoneyReveal.cpp" />
     <ClCompile Include="src\PunchView.cpp" />
+    <ClCompile Include="src\RecoilControl.cpp" />
     <ClCompile Include="src\PatchRestore.cpp" />
     <ClCompile Include="src\Skeleton.cpp" />
     <ClCompile Include="src\SmokeColor.cpp" />
@@ -237,6 +238,7 @@
     <ClInclude Include="src\ThirdPerson.h" />
     <ClInclude Include="src\MoneyReveal.h" />
     <ClInclude Include="src\PunchView.h" />
+    <ClInclude Include="src\RecoilControl.h" />
     <ClInclude Include="src\Triggerbot.h" />
     <ClInclude Include="src\Types.h" />
     <ClInclude Include="src\WeaponIcons.h" />

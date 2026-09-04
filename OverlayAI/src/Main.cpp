@@ -28,6 +28,7 @@
 #include "Entity.h"
 #include "AntiFlash.h"
 #include "PunchView.h"
+#include "RecoilControl.h"
 #include "AntiSmoke.h"
 #include "SmokeColor.h"
 #include "OtherGlow.h"
@@ -357,6 +358,10 @@ int main(int argc, char** argv) {
             RestoreAntiFlashOverrides();
         }
         RunBhop();
+
+        // RCS: compensates recoil into the view angles. Runs FIRST to
+        // read the REAL punch before Quit Aim Punch zeroes it out.
+        RunRCS();
 
         // Quit Punchview: neutralizes the damage camera kick while
         // enabled. Called every frame (same as Anti Flash).

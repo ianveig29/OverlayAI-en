@@ -11,6 +11,7 @@
 #include "Bhop.h"
 #include "ThirdPerson.h"
 #include "PunchView.h"
+#include "RecoilControl.h"
 #include "Stats.h"
 #include "WeaponIcons.h"
 #include "InventoryCatalog.h"
@@ -845,6 +846,13 @@ void RenderEspMenu() {
                     "Allow Aimlock in smoke##aim_smoke"), &g_Aim.allowWhenInSmoke);
                 ImGui::Checkbox(Localized("Control de retroceso (RCS)##rcs_enabled",
                     "Recoil Control System##rcs_enabled"), &g_Aim.recoilControlSystem);
+                // Explains the difference from "Quit Aim Punch" and the strength slider.
+                ImGui::TextDisabled(Localized("Compensa de verdad el retroceso: las balas pegan donde apuntas. Diferencia con Quitar Aim Punch: aca la mira SE MUEVE para compensar (el crosshair dice la verdad), alla solo se esconde el visual.",
+                    "Actually compensates recoil: bullets land where you aim. Difference from Quit Aim Punch: here the crosshair DOES move to compensate (it tells the truth), there the visual kick is only hidden."));
+                ImGui::SliderInt(Localized("Fuerza RCS##rcs_strength",
+                    "RCS strength##rcs_strength"), &g_Aim.rcsStrengthPercent, 0, 100, "%d%%");
+                if (g_Aim.recoilControlSystem)
+                    ImGui::Text("Frames compensated: %u", GetRCSCompensationCount());
 
                 ImGui::EndTabItem();
             }
