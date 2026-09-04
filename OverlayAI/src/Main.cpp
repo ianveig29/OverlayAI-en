@@ -366,7 +366,6 @@ int main(int argc, char** argv) {
         // Quit Punchview: neutralizes the damage camera kick while
         // enabled. Called every frame (same as Anti Flash).
         RunQuitPunchview();
-        RunQuitAimPunch();
 
         // Third person: the checkbox is the master enable.
         // Checking it activates the camera right away; unchecking

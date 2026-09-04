@@ -153,9 +153,6 @@ struct EspSettings {
     bool showMoney = false;
     bool fakeProfile = false;
     bool quitPunchview = false;
-    // Quit aim punch: hides the VISUAL recoil of your own shots.
-    // Bullets still follow the server's real pattern (see PunchView.h).
-    bool quitAimPunch = false;
 };
 
 struct AppSettings {
