@@ -452,6 +452,165 @@ namespace {
         }
     }
 
+    // In-flight grenade ESP: marks every thrown grenade with its type and
+    // distance. "Live entity tracking" pattern: instead of predicting the
+    // physics from scratch, we read the REAL position of the projectile
+    // entity every frame - it cannot desync from the server (grenade
+    // physics report, Rank 1).
+    struct GrenadeTypeInfo {
+        const char* designerName;
+        const char* label;
+        ImU32 color;
+    };
+    const GrenadeTypeInfo kGrenadeTypes[] = {
+        { "smokegrenade_projectile", "SMOKE", IM_COL32(200, 200, 200, 255) },
+        { "flashbang_projectile", "FLASH", IM_COL32(255, 255, 90, 255) },
+        { "hegrenade_projectile", "HE", IM_COL32(255, 90, 70, 255) },
+        { "molotov_projectile", "MOLOTOV", IM_COL32(255, 140, 40, 255) },
+        { "decoy_projectile", "DECOY", IM_COL32(120, 190, 255, 255) },
+    };
+
+    struct CachedGrenade {
+        uintptr_t entity = 0;
+        uintptr_t identity = 0;
+        int type = -1;
+    };
+    std::vector<CachedGrenade> g_grenadeCache;
+    // Class cache: entity -> {identity, type} (-1 = not a grenade).
+    std::unordered_map<uintptr_t, std::pair<uintptr_t, int>> g_grenadeClassCache;
+    ULONGLONG g_grenadeScanNextMs = 0;
+    int g_grenadeScanChunk = 0;
+
+    static int GetGrenadeTypeIndex(const char* name) {
+        for (int i = 0; i < (int)(sizeof(kGrenadeTypes) / sizeof(kGrenadeTypes[0])); ++i)
+            if (strcmp(name, kGrenadeTypes[i].designerName) == 0) return i;
+        return -1;
+    }
+
+    // Same as weapons: the entity is still the same grenade (identity)
+    // and it is still airborne (invalid owner = released).
+    static bool IsStillValidGrenade(const CachedGrenade& g) {
+        const uintptr_t identity = mem.Read<uintptr_t>(g.entity + Offsets::m_pEntityIdentity);
+        if (identity != g.identity) return false;
+        const uint32_t owner = mem.Read<uint32_t>(g.entity + Offsets::m_hOwnerEntity);
+        return owner == 0 || owner == 0xFFFFFFFF;
+    }
+
+    // Chunked scan (the C4 system) at 50 ms per chunk: grenades live a very
+    // short time and must be found right after the throw.
+    static void UpdateGrenadeCache(uintptr_t entityList) {
+        if (!IsValidPtr(entityList) || (g_entityStride != 0x70 && g_entityStride != 0x78))
+            return;
+        const ULONGLONG nowMs = GetTickCount64();
+        if (nowMs < g_grenadeScanNextMs) return;
+        g_grenadeScanNextMs = nowMs + 50;
+
+        // Purge: remove grenades that detonated or recycled entities.
+        g_grenadeCache.erase(std::remove_if(g_grenadeCache.begin(),
+            g_grenadeCache.end(), [](const CachedGrenade& g) {
+                return !IsValidPtr(g.entity) || !IsStillValidGrenade(g);
+            }), g_grenadeCache.end());
+
+        const size_t chunkSize = static_cast<size_t>(g_entityStride) * 512;
+        std::vector<uint8_t> chunkBytes(chunkSize);
+        const uintptr_t chunk = mem.Read<uintptr_t>(
+            entityList + 16 + 8 * g_grenadeScanChunk);
+        ++g_grenadeScanChunk;
+        if (g_grenadeScanChunk >= 8) g_grenadeScanChunk = 0;
+        if (!IsValidPtr(chunk)) return;
+        SIZE_T bytesRead = 0;
+        if (!ReadProcessMemory(mem.hProcess, reinterpret_cast<LPCVOID>(chunk),
+            chunkBytes.data(), chunkBytes.size(), &bytesRead))
+            return;
+
+        for (int entry = 0; entry < 512; ++entry) {
+            const size_t offset = static_cast<size_t>(entry) * g_entityStride;
+            if (offset + sizeof(uintptr_t) > bytesRead) break;
+            uintptr_t entity = 0;
+            memcpy(&entity, chunkBytes.data() + offset, sizeof(entity));
+            if (!IsValidPtr(entity)) continue;
+
+            const uintptr_t identity = mem.Read<uintptr_t>(
+                entity + Offsets::m_pEntityIdentity);
+            if (!IsValidPtr(identity)) continue;
+
+            // Class cache before reading the designerName.
+            int type = -1;
+            const auto cached = g_grenadeClassCache.find(entity);
+            if (cached != g_grenadeClassCache.end() &&
+                cached->second.first == identity) {
+                type = cached->second.second;
+            } else {
+                const uintptr_t nameAddress = mem.Read<uintptr_t>(
+                    identity + Offsets::m_designerName);
+                char name[48]{};
+                bool readOk = false;
+                if (IsValidPtr(nameAddress)) {
+                    SIZE_T got = 0;
+                    readOk = ReadProcessMemory(mem.hProcess,
+                        reinterpret_cast<LPCVOID>(nameAddress),
+                        name, sizeof(name) - 1, &got) && got > 0;
+                }
+                type = readOk ? GetGrenadeTypeIndex(name) : -1;
+                if (g_grenadeClassCache.size() > 8192)
+                    g_grenadeClassCache.clear();
+                g_grenadeClassCache[entity] = { identity, type };
+            }
+            if (type < 0) continue;
+
+            const uint32_t owner = mem.Read<uint32_t>(entity + Offsets::m_hOwnerEntity);
+            if (owner != 0 && owner != 0xFFFFFFFF) continue; // still in hand
+
+            bool already = false;
+            for (const auto& g : g_grenadeCache)
+                if (g.entity == entity) { already = true; break; }
+            if (!already) g_grenadeCache.push_back({ entity, identity, type });
+        }
+    }
+
+    // Draws every cached grenade: colored dot + type + meters.
+    static void DrawGrenadeMarkers(ImDrawList* drawList, const Matrix4x4& viewMatrix,
+        int screenWidth, int screenHeight, uintptr_t localPawn) {
+        if (!g_Esp.showGrenadeEsp || g_grenadeCache.empty()) return;
+
+        const Vector3 localPos = GetPawnWorldPos(localPawn);
+        const bool haveLocal = std::isfinite(localPos.x) && std::isfinite(localPos.y) &&
+            std::isfinite(localPos.z);
+
+        for (const CachedGrenade& g : g_grenadeCache) {
+            if (!IsStillValidGrenade(g)) continue;
+            const uintptr_t sceneNode =
+                mem.Read<uintptr_t>(g.entity + Offsets::m_pGameSceneNode);
+            if (!IsValidPtr(sceneNode)) continue;
+            const Vector3 pos = mem.Read<Vector3>(sceneNode + Offsets::m_vecAbsOrigin);
+            if (!std::isfinite(pos.x) || !std::isfinite(pos.y) ||
+                !std::isfinite(pos.z)) continue;
+            Vector3 screen{};
+            if (!WorldToScreen(pos, screen, viewMatrix, screenWidth, screenHeight)) continue;
+
+            const GrenadeTypeInfo& info = kGrenadeTypes[g.type];
+            const ImVec2 center(screen.x, screen.y);
+            drawList->AddCircleFilled(center, 5.0f, IM_COL32(0, 0, 0, 200), 16);
+            drawList->AddCircleFilled(center, 3.5f, info.color, 16);
+
+            char label[48];
+            if (haveLocal) {
+                const float dx = pos.x - localPos.x;
+                const float dy = pos.y - localPos.y;
+                const float dz = pos.z - localPos.z;
+                const float meters =
+                    std::sqrt(dx * dx + dy * dy + dz * dz) * 0.01905f;
+                snprintf(label, sizeof(label), "%s  %.0fm", info.label, meters);
+            } else {
+                snprintf(label, sizeof(label), "%s", info.label);
+            }
+            const ImVec2 textSize = ImGui::CalcTextSize(label);
+            DrawOutlinedText(drawList,
+                ImVec2(screen.x - textSize.x * 0.5f, screen.y + 8.0f),
+                info.color, label);
+        }
+    }
+
     struct EspLabel {
         int anchor = EspTextTop;
         ImU32 color = IM_COL32_WHITE;
@@ -748,6 +907,7 @@ void RenderESP(int screenWidth, int screenHeight) {
 
     // Weapon tracers: chunk scan, same system as the C4 one.
     if (g_Esp.showTracerWeapons) UpdateGroundWeaponCache(entityList);
+    if (g_Esp.showGrenadeEsp) UpdateGrenadeCache(entityList);
 
     // Finish every per-entity memory read before sampling the camera. This keeps
     // all boxes on one late matrix even when the view changes rapidly.
@@ -1094,6 +1254,7 @@ void RenderESP(int screenWidth, int screenHeight) {
     // does not mix with the per-player labels.
     DrawDroppedBombMarker(drawList, viewMatrix, screenWidth, screenHeight, localPawn);
     DrawGroundWeaponTracers(drawList, viewMatrix, screenWidth, screenHeight, localPawn);
+    DrawGrenadeMarkers(drawList, viewMatrix, screenWidth, screenHeight, localPawn);
 
     auto perf_frameEnd = std::chrono::high_resolution_clock::now();
     perf_totalMs = std::chrono::duration<double, std::milli>(perf_frameEnd - perf_frameStart).count();

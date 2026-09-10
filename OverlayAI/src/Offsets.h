@@ -29,6 +29,7 @@ namespace Offsets {
     extern uintptr_t m_bombsiteCenterA;
     extern uintptr_t m_bombsiteCenterB;
     extern uintptr_t m_flBombRadius;
+    extern uintptr_t m_iShotsFired;
 
     extern uintptr_t m_hPlayerPawn;
     extern uintptr_t m_bControllingBot;

@@ -97,6 +97,22 @@ void RunRCS() {
         predictable.z + unpredictable.z
     };
 
+    // Step 3b: firing gate, adapted from the public recoilControl() in
+    // tim_apple (github.com/kristofhracza/tim_apple, features/aim.cpp).
+    // With m_iShotsFired loaded by the auto-updater, we compensate ONLY
+    // while a spray is active (more than 1 bullet fired). When the trigger
+    // is released the reference syncs silently and the RCS stops fighting
+    // the natural punch recovery (before, the crosshair kept "correcting"
+    // for a moment after the burst ended). If the offset never loaded (0),
+    // the gate stays disabled and behavior is unchanged.
+    if (Offsets::m_iShotsFired != 0) {
+        const int shotsFired = mem.Read<int>(pawn + Offsets::m_iShotsFired);
+        if (shotsFired <= 1) {
+            g_prevPunch = punch;
+            return;
+        }
+    }
+
     // Step 4: delta against the previous frame, scaled by strength.
     const float strength = (g_Aim.rcsStrengthPercent < 0) ? 0.0f :
         (g_Aim.rcsStrengthPercent > 100) ? 100.0f :

@@ -156,6 +156,7 @@ void SaveEspConfig(const char* path) {
     fprintf(f, "show_bomb_esp=%d\n", g_Esp.showBombEsp ? 1 : 0);
     fprintf(f, "show_tracer=%d\n", g_Esp.showTracer ? 1 : 0);
     fprintf(f, "show_tracer_weapons=%d\n", g_Esp.showTracerWeapons ? 1 : 0);
+    fprintf(f, "show_grenade_esp=%d\n", g_Esp.showGrenadeEsp ? 1 : 0);
     fprintf(f, "bomb_tracer=%d,%d,%d\n", g_Esp.bombTracerR, g_Esp.bombTracerG, g_Esp.bombTracerB);
     fprintf(f, "tracer_player=%d,%d,%d\n", g_Esp.tracerPlayerR, g_Esp.tracerPlayerG, g_Esp.tracerPlayerB);
     fprintf(f, "tracer_weapon=%d,%d,%d\n", g_Esp.tracerWeaponR, g_Esp.tracerWeaponG, g_Esp.tracerWeaponB);
@@ -490,6 +491,7 @@ void LoadEspConfig(const char* path) {
         else if (sscanf_s(p, "show_bomb_esp=%d", &i1) == 1) g_Esp.showBombEsp = i1 != 0;
         else if (sscanf_s(p, "show_tracer=%d", &i1) == 1) g_Esp.showTracer = i1 != 0;
         else if (sscanf_s(p, "show_tracer_weapons=%d", &i1) == 1) g_Esp.showTracerWeapons = i1 != 0;
+        else if (sscanf_s(p, "show_grenade_esp=%d", &i1) == 1) g_Esp.showGrenadeEsp = i1 != 0;
         else if (sscanf_s(p, "bomb_tracer=%d,%d,%d", &i1, &i2, &i3) == 3) {
             g_Esp.bombTracerR = i1; g_Esp.bombTracerG = i2; g_Esp.bombTracerB = i3;
         } else if (sscanf_s(p, "tracer_player=%d,%d,%d", &i1, &i2, &i3) == 3) {

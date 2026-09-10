@@ -594,6 +594,14 @@ void RenderEspMenu() {
                             "C4 tracer color##bomb_tracer_color"),
                             &g_Esp.bombTracerR, &g_Esp.bombTracerG, &g_Esp.bombTracerB);
                     }
+
+                    // In-flight grenade ESP (independent from Bomb ESP).
+                    ImGui::Checkbox(Localized("Granadas en vuelo (ESP)##grenade_esp",
+                        "In-flight grenades (ESP)##grenade_esp"), &g_Esp.showGrenadeEsp);
+                    if (g_Esp.showGrenadeEsp)
+                        ImGui::TextDisabled(Localized(
+                            "Marca cada granada lanzada con su tipo y distancia: SMOKE gris, FLASH amarillo, HE rojo, MOLOTOV naranja y DECOY azul.",
+                            "Marks each thrown grenade with its type and distance: SMOKE gray, FLASH yellow, HE red, MOLOTOV orange and DECOY blue."));
                 }
 
                 // Tracer lines: their own section in VISUALS (they used to live

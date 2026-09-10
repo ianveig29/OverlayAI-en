@@ -105,6 +105,7 @@ struct EspSettings {
     bool showBombEsp = false; // Bomb ESP: marks the dropped C4 on the floor
     bool showTracer = false; // Tracer: line from the crosshair to each drawn player
     bool showTracerWeapons = false; // Tracer to valuable weapons dropped on the floor
+    bool showGrenadeEsp = false; // In-flight grenade ESP (SMOKE, FLASH, HE, MOLOTOV, DECOY)
     // Tracer colors (0-255, edited in the menu)
     int bombTracerR = 255, bombTracerG = 80, bombTracerB = 60;
     int tracerPlayerR = 255, tracerPlayerG = 255, tracerPlayerB = 255;

@@ -153,6 +153,10 @@ namespace Offsets {
     uintptr_t m_bombsiteCenterA = 0x648;
     uintptr_t m_bombsiteCenterB = 0x654;
     uintptr_t m_flBombRadius = 0x604;
+    // Shots fired in the current spray. Default 0 = "not loaded": the RCS
+    // detects the 0 and keeps the firing gate disabled until the
+    // auto-updater fills in the real dump value.
+    uintptr_t m_iShotsFired = 0;
 }
 
 static void ApplyOffsetKey(const std::string& ks, uintptr_t v) {
@@ -288,6 +292,7 @@ static void ApplyOffsetKey(const std::string& ks, uintptr_t v) {
     if (ks == "m_bombsiteCenterA") { Offsets::m_bombsiteCenterA = v; return; }
     if (ks == "m_bombsiteCenterB") { Offsets::m_bombsiteCenterB = v; return; }
     if (ks == "m_flBombRadius") { Offsets::m_flBombRadius = v; return; }
+    if (ks == "m_iShotsFired") { Offsets::m_iShotsFired = v; return; }
 }
 
 void LoadOffsetsFromFile(const char* path) {
@@ -367,7 +372,7 @@ void LoadOffsetsFromJSON(const char* path) {
         "glow_m_nGlowRangeMin", "glow_m_glowColorOverride", "glow_m_bFlashing", "glow_m_flGlowTime", "glow_m_flGlowStartTime", "glow_m_bGlowing", "glow_m_bEligibleForScreenHighlight",
         "m_flFlashOverlayAlpha", "m_flFlashMaxAlpha", "m_flFlashDuration", "m_flLastSmokeOverlayAlpha", "m_flFlashedAmount", "m_bFlashing",
         "dwPlantedC4", "m_bBombTicking", "m_nBombSite", "m_bBombDefused", "m_hBombDefuser", "m_pBombDefuser",
-        "m_bBombPlanted", "m_bBombDropped", "m_bombsiteCenterA", "m_bombsiteCenterB", "m_flBombRadius"
+        "m_bBombPlanted", "m_bBombDropped", "m_bombsiteCenterA", "m_bombsiteCenterB", "m_flBombRadius", "m_iShotsFired"
     };
     for (auto k : keys) parseValue(k);
 }
@@ -539,6 +544,11 @@ void LoadClientSchemaOffsetsFromJSON(const char* path) {
     parseClassField("C_CSPlayerResource", "m_bombsiteCenterA", Offsets::m_bombsiteCenterA);
     parseClassField("C_CSPlayerResource", "m_bombsiteCenterB", Offsets::m_bombsiteCenterB);
     parseClassField("CMapInfo", "m_flBombRadius", Offsets::m_flBombRadius);
+    // Verified against the real dump (a2x client_dll.json): the field lives
+    // in the C_CSPlayerPawn class, reference value 0x1C8C. The default stays
+    // at 0 = "gate disabled" until the dumper loads it: a stale hardcoded
+    // value could read garbage and silently kill the RCS.
+    parseClassField("C_CSPlayerPawn", "m_iShotsFired", Offsets::m_iShotsFired);
 }
 
 std::vector<LoadedOffsetEntry> GetLoadedOffsetsSnapshot() {
