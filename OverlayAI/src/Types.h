@@ -103,6 +103,8 @@ struct EspSettings {
     // Per-player equipment indicators.
     bool showBombCarrier = false;
     bool showBombEsp = false; // Bomb ESP: marks the dropped C4 on the floor
+    bool showTracer = false; // Tracer: line from the crosshair to each drawn player
+    bool showTracerWeapons = false; // Tracer to valuable weapons dropped on the floor
     bool showDefuseKits = false;
     bool showArmorIndicator = false;
     bool showHelmetIndicator = false;

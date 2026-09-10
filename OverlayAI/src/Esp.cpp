@@ -270,6 +270,181 @@ namespace {
         DrawOutlinedText(drawList, textPos, color, label);
     }
 
+    // Tracers: lines from the crosshair (screen center) to the target.
+    // Rage style: locate enemies and valuable dropped weapons at a
+    // glance, without turning the camera.
+
+    // Weapons that get a tracer when dropped on the floor.
+    // To add or remove a weapon just touch this list (the name is
+    // the entity designerName, all lowercase).
+    const char* const kTracerWeaponNames[] = {
+        "weapon_ak47", "weapon_awp", "weapon_m4a1",
+        "weapon_m4a1_silencer", "weapon_deagle"
+    };
+
+    struct CachedGroundWeapon {
+        uintptr_t entity = 0;
+        uintptr_t identity = 0;
+        char name[32] = {};
+    };
+
+    std::vector<CachedGroundWeapon> g_groundWeaponCache;
+    // Class cache: entity -> {identity, is it a weapon from the list?}.
+    // Reading the designerName is expensive, so each entity is analyzed once.
+    std::unordered_map<uintptr_t, std::pair<uintptr_t, bool>> g_groundWeaponClassCache;
+    ULONGLONG g_weaponScanNextMs = 0;
+    int g_weaponScanChunk = 0;
+
+    static bool MatchesTracerWeaponList(const char* name) {
+        for (const char* wanted : kTracerWeaponNames)
+            if (strcmp(name, wanted) == 0) return true;
+        return false;
+    }
+
+    // A cached weapon is still valid if: the identity did not change (the
+    // entity was not recycled for something else) and the owner is still
+    // invalid (nobody picked it up).
+    static bool IsStillValidGroundWeapon(const CachedGroundWeapon& w) {
+        const uintptr_t identity = mem.Read<uintptr_t>(w.entity + Offsets::m_pEntityIdentity);
+        if (identity != w.identity) return false;
+        const uint32_t owner = mem.Read<uint32_t>(w.entity + Offsets::m_hOwnerEntity);
+        return owner == 0 || owner == 0xFFFFFFFF;
+    }
+
+    // Scans the entity list by chunks (same system as the C4 scan) for
+    // the weapons on the list dropped on the floor. One chunk every 50 ms
+    // so we do not hammer the memory.
+    static void UpdateGroundWeaponCache(uintptr_t entityList) {
+        if (!IsValidPtr(entityList) || (g_entityStride != 0x70 && g_entityStride != 0x78))
+            return;
+        const ULONGLONG nowMs = GetTickCount64();
+        if (nowMs < g_weaponScanNextMs) return;
+        g_weaponScanNextMs = nowMs + 50;
+
+        // Purge: drop picked-up weapons and recycled entities.
+        g_groundWeaponCache.erase(std::remove_if(g_groundWeaponCache.begin(),
+            g_groundWeaponCache.end(), [](const CachedGroundWeapon& w) {
+                return !IsValidPtr(w.entity) || !IsStillValidGroundWeapon(w);
+            }), g_groundWeaponCache.end());
+
+        const size_t chunkSize = static_cast<size_t>(g_entityStride) * 512;
+        std::vector<uint8_t> chunkBytes(chunkSize);
+        const uintptr_t chunk = mem.Read<uintptr_t>(
+            entityList + 16 + 8 * g_weaponScanChunk);
+        ++g_weaponScanChunk;
+        if (g_weaponScanChunk >= 8) g_weaponScanChunk = 0;
+        if (!IsValidPtr(chunk)) return;
+        SIZE_T bytesRead = 0;
+        if (!ReadProcessMemory(mem.hProcess, reinterpret_cast<LPCVOID>(chunk),
+            chunkBytes.data(), chunkBytes.size(), &bytesRead))
+            return;
+
+        for (int entry = 0; entry < 512; ++entry) {
+            const size_t offset = static_cast<size_t>(entry) * g_entityStride;
+            if (offset + sizeof(uintptr_t) > bytesRead) break;
+            uintptr_t entity = 0;
+            memcpy(&entity, chunkBytes.data() + offset, sizeof(entity));
+            if (!IsValidPtr(entity)) continue;
+
+            const uintptr_t identity = mem.Read<uintptr_t>(
+                entity + Offsets::m_pEntityIdentity);
+            if (!IsValidPtr(identity)) continue;
+
+            // Check the class cache before reading the designerName.
+            bool matches = false;
+            const auto cached = g_groundWeaponClassCache.find(entity);
+            if (cached != g_groundWeaponClassCache.end() &&
+                cached->second.first == identity) {
+                matches = cached->second.second;
+            } else {
+                const uintptr_t nameAddress = mem.Read<uintptr_t>(
+                    identity + Offsets::m_designerName);
+                char name[32]{};
+                bool readOk = false;
+                if (IsValidPtr(nameAddress)) {
+                    SIZE_T got = 0;
+                    readOk = ReadProcessMemory(mem.hProcess,
+                        reinterpret_cast<LPCVOID>(nameAddress),
+                        name, sizeof(name) - 1, &got) && got > 0;
+                }
+                matches = readOk && MatchesTracerWeaponList(name);
+                if (g_groundWeaponClassCache.size() > 8192)
+                    g_groundWeaponClassCache.clear();
+                g_groundWeaponClassCache[entity] = { identity, matches };
+            }
+            if (!matches) continue;
+
+            const uint32_t owner = mem.Read<uint32_t>(entity + Offsets::m_hOwnerEntity);
+            if (owner != 0 && owner != 0xFFFFFFFF) continue; // in someones hands
+
+            CachedGroundWeapon weapon{};
+            weapon.entity = entity;
+            weapon.identity = identity;
+            const uintptr_t nameAddress = mem.Read<uintptr_t>(
+                identity + Offsets::m_designerName);
+            if (IsValidPtr(nameAddress)) {
+                SIZE_T got = 0;
+                ReadProcessMemory(mem.hProcess, reinterpret_cast<LPCVOID>(nameAddress),
+                    weapon.name, sizeof(weapon.name) - 1, &got);
+            }
+            if (weapon.name[0] == 0) continue;
+
+            bool already = false;
+            for (const auto& w : g_groundWeaponCache)
+                if (w.entity == entity) { already = true; break; }
+            if (!already) g_groundWeaponCache.push_back(weapon);
+        }
+    }
+
+    // Orange tracers to dropped weapons: line from the crosshair + weapon
+    // name (without the weapon_ prefix) + distance in meters.
+    static void DrawGroundWeaponTracers(ImDrawList* drawList, const Matrix4x4& viewMatrix,
+        int screenWidth, int screenHeight, uintptr_t localPawn) {
+        if (!g_Esp.showTracerWeapons || g_groundWeaponCache.empty()) return;
+
+        const Vector3 localPos = GetPawnWorldPos(localPawn);
+        const bool haveLocal = std::isfinite(localPos.x) && std::isfinite(localPos.y) &&
+            std::isfinite(localPos.z);
+        const ImVec2 crosshair((float)screenWidth * 0.5f, (float)screenHeight * 0.5f);
+        const ImU32 lineColor = IM_COL32(255, 180, 40, 150);
+        const ImU32 outline = IM_COL32(0, 0, 0, 160);
+
+        for (const CachedGroundWeapon& w : g_groundWeaponCache) {
+            if (!IsStillValidGroundWeapon(w)) continue;
+            const uintptr_t sceneNode =
+                mem.Read<uintptr_t>(w.entity + Offsets::m_pGameSceneNode);
+            if (!IsValidPtr(sceneNode)) continue;
+            const Vector3 pos = mem.Read<Vector3>(sceneNode + Offsets::m_vecAbsOrigin);
+            if (!std::isfinite(pos.x) || !std::isfinite(pos.y) ||
+                !std::isfinite(pos.z)) continue;
+            Vector3 screen{};
+            if (!WorldToScreen(pos, screen, viewMatrix, screenWidth, screenHeight)) continue;
+
+            const ImVec2 end(screen.x, screen.y);
+            drawList->AddLine(crosshair, end, outline, 2.5f);
+            drawList->AddLine(crosshair, end, lineColor, 1.2f);
+            drawList->AddCircleFilled(end, 3.0f, outline, 12);
+
+            char label[48];
+            const char* shortName = w.name;
+            if (strncmp(shortName, "weapon_", 7) == 0) shortName += 7;
+            if (haveLocal) {
+                const float dx = pos.x - localPos.x;
+                const float dy = pos.y - localPos.y;
+                const float dz = pos.z - localPos.z;
+                const float meters =
+                    std::sqrt(dx * dx + dy * dy + dz * dz) * 0.01905f;
+                snprintf(label, sizeof(label), "%s  %.0fm", shortName, meters);
+            } else {
+                snprintf(label, sizeof(label), "%s", shortName);
+            }
+            const ImVec2 textSize = ImGui::CalcTextSize(label);
+            DrawOutlinedText(drawList,
+                ImVec2(screen.x - textSize.x * 0.5f, screen.y + 8.0f),
+                IM_COL32(255, 190, 80, 255), label);
+        }
+    }
+
     struct EspLabel {
         int anchor = EspTextTop;
         ImU32 color = IM_COL32_WHITE;
@@ -564,6 +739,9 @@ void RenderESP(int screenWidth, int screenHeight) {
         ? ReadCachedBombCarrier(entityList)
         : 0;
 
+    // Weapon tracers: chunk scan, same system as the C4 one.
+    if (g_Esp.showTracerWeapons) UpdateGroundWeaponCache(entityList);
+
     // Finish every per-entity memory read before sampling the camera. This keeps
     // all boxes on one late matrix even when the view changes rapidly.
     static std::vector<PreparedEspEntity> preparedEntities;
@@ -714,6 +892,15 @@ void RenderESP(int screenWidth, int screenHeight) {
         }
 
         if (!hasScreenBox || boxHeight <= 2.0f || boxWidth <= 2.0f) continue;
+
+        // Player tracer: semi-transparent white line from the crosshair
+        // to the center of the box.
+        if (g_Esp.showTracer) {
+            const ImVec2 tracerFrom((float)screenWidth * 0.5f, (float)screenHeight * 0.5f);
+            const ImVec2 tracerTo(topLeftX + boxWidth * 0.5f, topLeftY + boxHeight * 0.5f);
+            drawList->AddLine(tracerFrom, tracerTo, IM_COL32(0, 0, 0, 120), 2.5f);
+            drawList->AddLine(tracerFrom, tracerTo, IM_COL32(255, 255, 255, 110), 1.2f);
+        }
 
         // start draw timer for this entity
         auto t_draw_start = std::chrono::high_resolution_clock::now();
@@ -897,6 +1084,7 @@ void RenderESP(int screenWidth, int screenHeight) {
     // Bomb ESP: marker for the dropped C4. Called after the loop so it
     // does not mix with the per-player labels.
     DrawDroppedBombMarker(drawList, viewMatrix, screenWidth, screenHeight, localPawn);
+    DrawGroundWeaponTracers(drawList, viewMatrix, screenWidth, screenHeight, localPawn);
 
     auto perf_frameEnd = std::chrono::high_resolution_clock::now();
     perf_totalMs = std::chrono::duration<double, std::milli>(perf_frameEnd - perf_frameStart).count();
