@@ -312,14 +312,15 @@ namespace {
     }
 
     // Scans the entity list by chunks (same system as the C4 scan) for
-    // the weapons on the list dropped on the floor. One chunk every 50 ms
-    // so we do not hammer the memory.
+    // the weapons on the list dropped on the floor. One chunk every
+    // 250 ms (full cycle ~2 s): weapons do not teleport, going faster
+    // is pointless and this keeps the memory relaxed.
     static void UpdateGroundWeaponCache(uintptr_t entityList) {
         if (!IsValidPtr(entityList) || (g_entityStride != 0x70 && g_entityStride != 0x78))
             return;
         const ULONGLONG nowMs = GetTickCount64();
         if (nowMs < g_weaponScanNextMs) return;
-        g_weaponScanNextMs = nowMs + 50;
+        g_weaponScanNextMs = nowMs + 250;
 
         // Purge: drop picked-up weapons and recycled entities.
         g_groundWeaponCache.erase(std::remove_if(g_groundWeaponCache.begin(),
