@@ -207,6 +207,64 @@ namespace {
         return g_bombCarrierCache.ownerHandle;
     }
 
+    // Bomb ESP: draws a marker over the C4 dropped on the floor.
+    // Reuses the C4 carrier cache the ESP already had
+    // (g_bombCarrierCache). If the C4 entity exists but its owner is
+    // invalid (0 or 0xFFFFFFFF), the bomb is on the floor.
+    // As CT the game does NOT show the dropped C4 on the radar (Ts get
+    // it for free), so this marker is the only way to locate it from
+    // a distance. Drawn through walls, same as the ESP boxes.
+    static void DrawDroppedBombMarker(ImDrawList* drawList, const Matrix4x4& viewMatrix,
+        int screenWidth, int screenHeight, uintptr_t localPawn) {
+        if (!g_Esp.showBombEsp) return;
+        const uintptr_t c4Entity = g_bombCarrierCache.c4Entity;
+        if (!IsValidPtr(c4Entity)) return;
+
+        // Valid owner = a player is carrying it; the C4 carrier marker
+        // already covers that case, so we draw nothing here.
+        const uint32_t owner = g_bombCarrierCache.ownerHandle;
+        if (owner != 0 && owner != 0xFFFFFFFF) return;
+
+        // World position: scene node of the C4 entity.
+        const uintptr_t sceneNode = mem.Read<uintptr_t>(c4Entity + Offsets::m_pGameSceneNode);
+        if (!IsValidPtr(sceneNode)) return;
+        const Vector3 bombPos = mem.Read<Vector3>(sceneNode + Offsets::m_vecAbsOrigin);
+        if (!std::isfinite(bombPos.x) || !std::isfinite(bombPos.y) ||
+            !std::isfinite(bombPos.z)) return;
+
+        Vector3 screen{};
+        if (!WorldToScreen(bombPos, screen, viewMatrix, screenWidth, screenHeight)) return;
+
+        // Distance in meters: in Source 1 unit = 1.905 cm, meaning
+        // meters = units * 0.01905. If the local position cannot be read
+        // we show the text without the distance.
+        float meters = -1.0f;
+        const Vector3 localPos = GetPawnWorldPos(localPawn);
+        if (std::isfinite(localPos.x) && std::isfinite(localPos.y) &&
+            std::isfinite(localPos.z)) {
+            const float dx = bombPos.x - localPos.x;
+            const float dy = bombPos.y - localPos.y;
+            const float dz = bombPos.z - localPos.z;
+            meters = std::sqrt(dx * dx + dy * dy + dz * dz) * 0.01905f;
+        }
+
+        char label[48];
+        if (meters >= 0.0f)
+            snprintf(label, sizeof(label), "C4  %.0fm", meters);
+        else
+            snprintf(label, sizeof(label), "C4");
+
+        // Red dot over the bomb + centered text below it.
+        const ImVec2 center(screen.x, screen.y);
+        const ImU32 outline = IM_COL32(0, 0, 0, 200);
+        const ImU32 color = IM_COL32(255, 80, 60, 255);
+        drawList->AddCircleFilled(center, 5.0f, outline, 16);
+        drawList->AddCircleFilled(center, 3.5f, color, 16);
+        const ImVec2 textSize = ImGui::CalcTextSize(label);
+        const ImVec2 textPos(screen.x - textSize.x * 0.5f, screen.y + 8.0f);
+        DrawOutlinedText(drawList, textPos, color, label);
+    }
+
     struct EspLabel {
         int anchor = EspTextTop;
         ImU32 color = IM_COL32_WHITE;
@@ -497,7 +555,7 @@ void RenderESP(int screenWidth, int screenHeight) {
     int localPlayerIndex = frame.localPlayerIndex;
 
     if (!IsValidPtr(entityList)) return;
-    const uint32_t bombOwnerHandle = g_Esp.showBombCarrier
+    const uint32_t bombOwnerHandle = (g_Esp.showBombCarrier || g_Esp.showBombEsp)
         ? ReadCachedBombCarrier(entityList)
         : 0;
 
@@ -830,6 +888,10 @@ void RenderESP(int screenWidth, int screenHeight) {
         perf_drawMs += std::chrono::duration<double, std::milli>(t_draw_end - t_draw_start).count();
         ++drawn;
     }
+
+    // Bomb ESP: marker for the dropped C4. Called after the loop so it
+    // does not mix with the per-player labels.
+    DrawDroppedBombMarker(drawList, viewMatrix, screenWidth, screenHeight, localPawn);
 
     auto perf_frameEnd = std::chrono::high_resolution_clock::now();
     perf_totalMs = std::chrono::duration<double, std::milli>(perf_frameEnd - perf_frameStart).count();

@@ -530,6 +530,12 @@ void RenderEspMenu() {
                     ImGui::SeparatorText(Localized("Equipo", "Equipment"));
                         ImGui::Checkbox(Localized("Portador del C4##c4_carrier",
                             "C4 carrier##c4_carrier"), &g_Esp.showBombCarrier);
+                        ImGui::Checkbox(Localized("Bomb ESP (C4 tirada)##bomb_esp",
+                            "Bomb ESP (dropped C4)##bomb_esp"), &g_Esp.showBombEsp);
+                        if (g_Esp.showBombEsp)
+                            ImGui::TextDisabled(Localized(
+                                "Marca la C4 tirada en el piso con su distancia en metros.",
+                                "Marks the dropped C4 on the floor with its distance in meters. As CT the radar does not show it: this is your only way to find it."));
                         ImGui::Checkbox(Localized("Kit de desactivacion##defuse_kit",
                             "Defuse kit##defuse_kit"), &g_Esp.showDefuseKits);
                         ImGui::Checkbox(Localized("Indicador de chaleco##armor_indicator",
