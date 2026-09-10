@@ -530,12 +530,6 @@ void RenderEspMenu() {
                     ImGui::SeparatorText(Localized("Equipo", "Equipment"));
                         ImGui::Checkbox(Localized("Portador del C4##c4_carrier",
                             "C4 carrier##c4_carrier"), &g_Esp.showBombCarrier);
-                        ImGui::Checkbox(Localized("Bomb ESP (C4 tirada)##bomb_esp",
-                            "Bomb ESP (dropped C4)##bomb_esp"), &g_Esp.showBombEsp);
-                        if (g_Esp.showBombEsp)
-                            ImGui::TextDisabled(Localized(
-                                "Marca la C4 tirada en el piso con su distancia en metros.",
-                                "Marks the dropped C4 on the floor with its distance in meters. As CT the radar does not show it: this is your only way to find it."));
                         ImGui::Checkbox(Localized("Kit de desactivacion##defuse_kit",
                             "Defuse kit##defuse_kit"), &g_Esp.showDefuseKits);
                         ImGui::Checkbox(Localized("Indicador de chaleco##armor_indicator",
@@ -560,27 +554,6 @@ void RenderEspMenu() {
                         ImGui::Unindent();
                     }
 
-                    ImGui::SeparatorText(Localized("Tracers", "Tracers"));
-                        ImGui::Checkbox(Localized("Tracer a jugadores##tracer_players",
-                            "Player tracers##tracer_players"), &g_Esp.showTracer);
-                        ImGui::Checkbox(Localized("Tracer a armas en el piso##tracer_weapons",
-                            "Ground weapon tracers##tracer_weapons"), &g_Esp.showTracerWeapons);
-                        if (g_Esp.showTracer)
-                            DrawColorEdit(Localized("Color tracer jugadores##tracer_player_color",
-                                "Player tracer color##tracer_player_color"),
-                                &g_Esp.tracerPlayerR, &g_Esp.tracerPlayerG, &g_Esp.tracerPlayerB);
-                        if (g_Esp.showTracerWeapons) {
-                            DrawColorEdit(Localized("Color tracer armas##tracer_weapon_color",
-                                "Weapon tracer color##tracer_weapon_color"),
-                                &g_Esp.tracerWeaponR, &g_Esp.tracerWeaponG, &g_Esp.tracerWeaponB);
-                            ImGui::TextDisabled(Localized(
-                                "Linea naranja a las armas valiosas tiradas: AWP, AK-47, M4A4, M4A1-S y Deagle.",
-                                "Orange line to dropped power weapons: AWP, AK-47, M4A4, M4A1-S and Deagle."));
-                        }
-                        if (g_Esp.showBombEsp)
-                            DrawColorEdit(Localized("Color tracer C4##bomb_tracer_color",
-                                "C4 tracer color##bomb_tracer_color"),
-                                &g_Esp.bombTracerR, &g_Esp.bombTracerG, &g_Esp.bombTracerB);
 
                     ImGui::SeparatorText(Localized("Apariencia", "Appearance"));
                     ImGui::SliderFloat(Localized("Grosor borde caja##box_outline",
@@ -605,6 +578,44 @@ void RenderEspMenu() {
                     ImGui::Combo(Localized("Posicion de indicadores##indicator_position",
                         "Indicator position##indicator_position"),
                         &g_Esp.equipmentTextAnchor, textPositions, 4);
+                }
+
+                // Bomb ESP: its own section in VISUALS (it used to live inside
+                // Box > Equipment mixed with the carrier and kits).
+                if (ImGui::CollapsingHeader(Localized("Bomb ESP##bomb_esp_header",
+                    "Bomb ESP##bomb_esp_header"), ImGuiTreeNodeFlags_DefaultOpen)) {
+                    ImGui::Checkbox(Localized("Bomb ESP (C4 tirada)##bomb_esp",
+                        "Bomb ESP (dropped C4)##bomb_esp"), &g_Esp.showBombEsp);
+                    if (g_Esp.showBombEsp) {
+                        ImGui::TextDisabled(Localized(
+                            "Marca la C4 tirada en el piso con su distancia en metros.",
+                            "Marks the dropped C4 on the floor with its distance in meters. As CT the radar does not show it: this is your only way to find it."));
+                        DrawColorEdit(Localized("Color tracer C4##bomb_tracer_color",
+                            "C4 tracer color##bomb_tracer_color"),
+                            &g_Esp.bombTracerR, &g_Esp.bombTracerG, &g_Esp.bombTracerB);
+                    }
+                }
+
+                // Tracer lines: their own section in VISUALS (they used to live
+                // nested inside the Box header).
+                if (ImGui::CollapsingHeader(Localized("Lineas de track##tracer_header",
+                    "Tracer lines##tracer_header"), ImGuiTreeNodeFlags_DefaultOpen)) {
+                    ImGui::Checkbox(Localized("Tracer a jugadores##tracer_players",
+                        "Player tracers##tracer_players"), &g_Esp.showTracer);
+                    ImGui::Checkbox(Localized("Tracer a armas en el piso##tracer_weapons",
+                        "Ground weapon tracers##tracer_weapons"), &g_Esp.showTracerWeapons);
+                    if (g_Esp.showTracer)
+                        DrawColorEdit(Localized("Color tracer jugadores##tracer_player_color",
+                            "Player tracer color##tracer_player_color"),
+                            &g_Esp.tracerPlayerR, &g_Esp.tracerPlayerG, &g_Esp.tracerPlayerB);
+                    if (g_Esp.showTracerWeapons) {
+                        DrawColorEdit(Localized("Color tracer armas##tracer_weapon_color",
+                            "Weapon tracer color##tracer_weapon_color"),
+                            &g_Esp.tracerWeaponR, &g_Esp.tracerWeaponG, &g_Esp.tracerWeaponB);
+                        ImGui::TextDisabled(Localized(
+                            "Linea naranja a las armas valiosas tiradas: AWP, AK-47, M4A4, M4A1-S y Deagle.",
+                            "Orange line to dropped power weapons: AWP, AK-47, M4A4, M4A1-S and Deagle."));
+                    }
                 }
 
                 if (ImGui::CollapsingHeader(Localized("Esqueleto##skeleton_header",
