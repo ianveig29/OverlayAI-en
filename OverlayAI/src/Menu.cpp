@@ -565,10 +565,22 @@ void RenderEspMenu() {
                             "Player tracers##tracer_players"), &g_Esp.showTracer);
                         ImGui::Checkbox(Localized("Tracer a armas en el piso##tracer_weapons",
                             "Ground weapon tracers##tracer_weapons"), &g_Esp.showTracerWeapons);
-                        if (g_Esp.showTracerWeapons)
+                        if (g_Esp.showTracer)
+                            DrawColorEdit(Localized("Color tracer jugadores##tracer_player_color",
+                                "Player tracer color##tracer_player_color"),
+                                &g_Esp.tracerPlayerR, &g_Esp.tracerPlayerG, &g_Esp.tracerPlayerB);
+                        if (g_Esp.showTracerWeapons) {
+                            DrawColorEdit(Localized("Color tracer armas##tracer_weapon_color",
+                                "Weapon tracer color##tracer_weapon_color"),
+                                &g_Esp.tracerWeaponR, &g_Esp.tracerWeaponG, &g_Esp.tracerWeaponB);
                             ImGui::TextDisabled(Localized(
                                 "Linea naranja a las armas valiosas tiradas: AWP, AK-47, M4A4, M4A1-S y Deagle.",
                                 "Orange line to dropped power weapons: AWP, AK-47, M4A4, M4A1-S and Deagle."));
+                        }
+                        if (g_Esp.showBombEsp)
+                            DrawColorEdit(Localized("Color tracer C4##bomb_tracer_color",
+                                "C4 tracer color##bomb_tracer_color"),
+                                &g_Esp.bombTracerR, &g_Esp.bombTracerG, &g_Esp.bombTracerB);
 
                     ImGui::SeparatorText(Localized("Apariencia", "Appearance"));
                     ImGui::SliderFloat(Localized("Grosor borde caja##box_outline",

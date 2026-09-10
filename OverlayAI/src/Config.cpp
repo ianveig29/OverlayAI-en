@@ -156,6 +156,9 @@ void SaveEspConfig(const char* path) {
     fprintf(f, "show_bomb_esp=%d\n", g_Esp.showBombEsp ? 1 : 0);
     fprintf(f, "show_tracer=%d\n", g_Esp.showTracer ? 1 : 0);
     fprintf(f, "show_tracer_weapons=%d\n", g_Esp.showTracerWeapons ? 1 : 0);
+    fprintf(f, "bomb_tracer=%d,%d,%d\n", g_Esp.bombTracerR, g_Esp.bombTracerG, g_Esp.bombTracerB);
+    fprintf(f, "tracer_player=%d,%d,%d\n", g_Esp.tracerPlayerR, g_Esp.tracerPlayerG, g_Esp.tracerPlayerB);
+    fprintf(f, "tracer_weapon=%d,%d,%d\n", g_Esp.tracerWeaponR, g_Esp.tracerWeaponG, g_Esp.tracerWeaponB);
     fprintf(f, "show_defuse_kits=%d\n", g_Esp.showDefuseKits ? 1 : 0);
     fprintf(f, "show_armor_indicator=%d\n", g_Esp.showArmorIndicator ? 1 : 0);
     fprintf(f, "show_helmet_indicator=%d\n", g_Esp.showHelmetIndicator ? 1 : 0);
@@ -487,6 +490,13 @@ void LoadEspConfig(const char* path) {
         else if (sscanf_s(p, "show_bomb_esp=%d", &i1) == 1) g_Esp.showBombEsp = i1 != 0;
         else if (sscanf_s(p, "show_tracer=%d", &i1) == 1) g_Esp.showTracer = i1 != 0;
         else if (sscanf_s(p, "show_tracer_weapons=%d", &i1) == 1) g_Esp.showTracerWeapons = i1 != 0;
+        else if (sscanf_s(p, "bomb_tracer=%d,%d,%d", &i1, &i2, &i3) == 3) {
+            g_Esp.bombTracerR = i1; g_Esp.bombTracerG = i2; g_Esp.bombTracerB = i3;
+        } else if (sscanf_s(p, "tracer_player=%d,%d,%d", &i1, &i2, &i3) == 3) {
+            g_Esp.tracerPlayerR = i1; g_Esp.tracerPlayerG = i2; g_Esp.tracerPlayerB = i3;
+        } else if (sscanf_s(p, "tracer_weapon=%d,%d,%d", &i1, &i2, &i3) == 3) {
+            g_Esp.tracerWeaponR = i1; g_Esp.tracerWeaponG = i2; g_Esp.tracerWeaponB = i3;
+        }
         } else if (sscanf_s(p, "show_defuse_kits=%d", &i1) == 1) {
             g_Esp.showDefuseKits = i1 != 0;
         } else if (sscanf_s(p, "show_spectator_list=%d", &i1) == 1) {

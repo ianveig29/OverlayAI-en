@@ -105,6 +105,10 @@ struct EspSettings {
     bool showBombEsp = false; // Bomb ESP: marks the dropped C4 on the floor
     bool showTracer = false; // Tracer: line from the crosshair to each drawn player
     bool showTracerWeapons = false; // Tracer to valuable weapons dropped on the floor
+    // Tracer colors (0-255, edited in the menu)
+    int bombTracerR = 255, bombTracerG = 80, bombTracerB = 60;
+    int tracerPlayerR = 255, tracerPlayerG = 255, tracerPlayerB = 255;
+    int tracerWeaponR = 255, tracerWeaponG = 180, tracerWeaponB = 40;
     bool showDefuseKits = false;
     bool showArmorIndicator = false;
     bool showHelmetIndicator = false;

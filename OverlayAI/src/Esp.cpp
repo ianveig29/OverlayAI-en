@@ -259,10 +259,13 @@ namespace {
         // when it lands in a corner of the screen.
         const ImVec2 center(screen.x, screen.y);
         const ImU32 outline = IM_COL32(0, 0, 0, 200);
-        const ImU32 color = IM_COL32(255, 80, 60, 255);
+        // Color configurable from the menu (Tracers section).
+        const ImU32 color = IM_COL32(
+            g_Esp.bombTracerR, g_Esp.bombTracerG, g_Esp.bombTracerB, 255);
         const ImVec2 crosshair((float)screenWidth * 0.5f, (float)screenHeight * 0.5f);
         drawList->AddLine(crosshair, center, outline, 3.0f);
-        drawList->AddLine(crosshair, center, IM_COL32(255, 80, 60, 140), 1.5f);
+        drawList->AddLine(crosshair, center, IM_COL32(
+            g_Esp.bombTracerR, g_Esp.bombTracerG, g_Esp.bombTracerB, 140), 1.5f);
         drawList->AddCircleFilled(center, 5.0f, outline, 16);
         drawList->AddCircleFilled(center, 3.5f, color, 16);
         const ImVec2 textSize = ImGui::CalcTextSize(label);
@@ -407,7 +410,9 @@ namespace {
         const bool haveLocal = std::isfinite(localPos.x) && std::isfinite(localPos.y) &&
             std::isfinite(localPos.z);
         const ImVec2 crosshair((float)screenWidth * 0.5f, (float)screenHeight * 0.5f);
-        const ImU32 lineColor = IM_COL32(255, 180, 40, 150);
+        // Color configurable from the menu (Tracers section).
+        const ImU32 lineColor = IM_COL32(
+            g_Esp.tracerWeaponR, g_Esp.tracerWeaponG, g_Esp.tracerWeaponB, 150);
         const ImU32 outline = IM_COL32(0, 0, 0, 160);
 
         for (const CachedGroundWeapon& w : g_groundWeaponCache) {
@@ -442,7 +447,8 @@ namespace {
             const ImVec2 textSize = ImGui::CalcTextSize(label);
             DrawOutlinedText(drawList,
                 ImVec2(screen.x - textSize.x * 0.5f, screen.y + 8.0f),
-                IM_COL32(255, 190, 80, 255), label);
+                IM_COL32(g_Esp.tracerWeaponR, g_Esp.tracerWeaponG,
+                    g_Esp.tracerWeaponB, 255), label);
         }
     }
 
@@ -897,10 +903,12 @@ void RenderESP(int screenWidth, int screenHeight) {
         // Player tracer: semi-transparent white line from the crosshair
         // to the center of the box.
         if (g_Esp.showTracer) {
+            // Color configurable from the menu (Tracers section).
             const ImVec2 tracerFrom((float)screenWidth * 0.5f, (float)screenHeight * 0.5f);
             const ImVec2 tracerTo(topLeftX + boxWidth * 0.5f, topLeftY + boxHeight * 0.5f);
             drawList->AddLine(tracerFrom, tracerTo, IM_COL32(0, 0, 0, 120), 2.5f);
-            drawList->AddLine(tracerFrom, tracerTo, IM_COL32(255, 255, 255, 110), 1.2f);
+            drawList->AddLine(tracerFrom, tracerTo, IM_COL32(
+                g_Esp.tracerPlayerR, g_Esp.tracerPlayerG, g_Esp.tracerPlayerB, 110), 1.2f);
         }
 
         // start draw timer for this entity
