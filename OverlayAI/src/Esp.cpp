@@ -254,10 +254,15 @@ namespace {
         else
             snprintf(label, sizeof(label), "C4");
 
-        // Red dot over the bomb + centered text below it.
+        // Line from the crosshair to the bomb (tracer) + red dot on top
+        // + centered text below. The line makes it easy to spot even
+        // when it lands in a corner of the screen.
         const ImVec2 center(screen.x, screen.y);
         const ImU32 outline = IM_COL32(0, 0, 0, 200);
         const ImU32 color = IM_COL32(255, 80, 60, 255);
+        const ImVec2 crosshair((float)screenWidth * 0.5f, (float)screenHeight * 0.5f);
+        drawList->AddLine(crosshair, center, outline, 3.0f);
+        drawList->AddLine(crosshair, center, IM_COL32(255, 80, 60, 140), 1.5f);
         drawList->AddCircleFilled(center, 5.0f, outline, 16);
         drawList->AddCircleFilled(center, 3.5f, color, 16);
         const ImVec2 textSize = ImGui::CalcTextSize(label);
