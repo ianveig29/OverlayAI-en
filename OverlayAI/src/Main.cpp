@@ -360,16 +360,20 @@ int main(int argc, char** argv) {
         // RCS: compensates recoil into the view angles every frame.
         RunRCS();
 
-        // Third person: the checkbox is the master enable.
-        // Checking it activates the camera right away; unchecking
-        // restores it. The key toggles the camera without touching the checkbox.
+        // Third person: the checkbox is the master enable. Checking it (or
+        // pressing the toggle key, which flips the checkbox) activates the
+        // camera right away; unchecking restores it. If applying fails
+        // (offsets not ready yet, JE byte mismatch), we retry on the next
+        // frame instead of giving up silently for the whole session.
         static bool tpMasterPrev = false;
         if (g_Esp.enableThirdperson != tpMasterPrev) {
             tpMasterPrev = g_Esp.enableThirdperson;
-            if (g_Esp.enableThirdperson)
-                (void)RunThirdPerson();
-            else
+            if (g_Esp.enableThirdperson) {
+                if (!RunThirdPerson())
+                    tpMasterPrev = false;  // apply failed: retry next frame
+            } else {
                 RestoreThirdPerson();
+            }
         }
 
         // Money reveal: patches is_hltv ONLY while the scoreboard is open

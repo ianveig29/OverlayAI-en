@@ -38,7 +38,7 @@ namespace {
         uintptr_t valueAddress = 0;     // Address of the camera value (0 or 256)
         uint8_t   originalByte = 0;     // Original JE byte (0x74)
         bool      applied = false;       // true if the patch is active
-        bool      scanAttempted = false; // true if we already tried scanning
+        bool      patternScanDone = false; // true if the pattern scan already ran this session
     };
 
     ThirdPersonPatchState g_tp;
@@ -176,35 +176,35 @@ bool RunThirdPerson() {
     if (!mem.clientModule) return false;
 
     // Resolve the patch and value addresses:
-    // 1) Try byte pattern scan (update-resistant).
-    // 2) Fall back to JSON offsets (auto-update system).
-    if (!g_tp.patchAddress && !g_tp.scanAttempted) {
-        g_tp.scanAttempted = true;
-
-        // Attempt 1: byte pattern scan with wildcards for the JE.
-        uintptr_t found = FindThirdPersonPatchByPattern();
-        if (found) {
-            g_tp.patchAddress = found;
-        } else {
-            // Attempt 2: fixed offset from JSON / auto-update (fallback).
-            const uintptr_t offset = Offsets::dwThirdPersonPatch;
-            if (offset == 0) return false;
-            if (mem.clientModuleSize != 0 && offset >= mem.clientModuleSize)
-                return false;
+    // 1) Prefer the dwThirdPersonPatch offset from the auto-updater (JSON):
+    //    the dumper validates it on every game update, so it is the ground
+    //    truth. 2) Fall back to the byte pattern scan ONLY if the offset is
+    //    missing. The pattern is generic (mov/test/je) and after a game
+    //    recompile it can match a DIFFERENT instruction and silently patch
+    //    the wrong JE - that is why it is the fallback, not the first choice.
+    if (!g_tp.patchAddress) {
+        const uintptr_t offset = Offsets::dwThirdPersonPatch;
+        if (offset != 0 &&
+            (mem.clientModuleSize == 0 || offset < mem.clientModuleSize))
             g_tp.patchAddress = mem.clientModule + offset;
-        }
-
-        // Resolve the camera value address (0 or 256).
-        // Derived from dwCSGOInput (auto-updated by the dumper) + 0x228.
-        // Previously this was a hardcoded absolute offset (dwThirdPersonValue = 0x23DBE98).
-        // Now it's calculated dynamically: client.dll + dwCSGOInput + 0x228.
-        const uintptr_t inputValue = Offsets::dwCSGOInput;
-        if (inputValue == 0) return false;
-        const uintptr_t valueOffset = inputValue + kThirdPersonValueSubOffset;
-        if (mem.clientModuleSize != 0 && valueOffset >= mem.clientModuleSize)
-            return false;
-        g_tp.valueAddress = mem.clientModule + valueOffset;
     }
+    if (!g_tp.patchAddress && !g_tp.patternScanDone) {
+        // Scan at most once per session: reading the whole client.dll on
+        // every retry would be far too expensive.
+        g_tp.patternScanDone = true;
+        g_tp.patchAddress = FindThirdPersonPatchByPattern();
+    }
+
+    // Resolve the camera value address (0 or 256).
+    // Derived from dwCSGOInput (auto-updated by the dumper) + 0x228.
+    // Previously this was a hardcoded absolute offset (dwThirdPersonValue = 0x23DBE98).
+    // Now it's calculated dynamically: client.dll + dwCSGOInput + 0x228.
+    const uintptr_t inputValue = Offsets::dwCSGOInput;
+    if (inputValue == 0) return false;
+    const uintptr_t valueOffset = inputValue + kThirdPersonValueSubOffset;
+    if (mem.clientModuleSize != 0 && valueOffset >= mem.clientModuleSize)
+        return false;
+    g_tp.valueAddress = mem.clientModule + valueOffset;
 
     if (!g_tp.patchAddress || !g_tp.valueAddress) return false;
 
@@ -221,7 +221,11 @@ bool RunThirdPerson() {
     if (current == 0x75) {
         g_tp.originalByte = 0x74;
     } else if (current != 0x74) {
-        return false;  // unexpected byte - don't touch
+        // Unexpected byte: this address is not the JE we want. Drop the
+        // cached address so the next call re-resolves (updated offset or
+        // pattern scan) instead of failing silently for the whole session.
+        g_tp.patchAddress = 0;
+        return false;
     } else {
         g_tp.originalByte = current;
     }

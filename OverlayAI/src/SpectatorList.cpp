@@ -4,6 +4,7 @@
 #include "Entity.h"
 #include "Memory.h"
 #include "Offsets.h"
+#include "TextFonts.h"
 #include "imgui.h"
 
 #include <string>
@@ -97,10 +98,17 @@ void RenderSpectatorListWindow() {
     if (!g_Esp.showSpectatorList) return;
     UpdateRows();
 
+    // The spectator window is rendered outside the main menu scope, so the
+    // UI font selected in the menu (classic/modern) must be pushed here too,
+    // exactly like the Bomb Info window does. Without this it falls back to
+    // the ImGui default font and ignores the fontMode setting.
+    if (GetUiFont()) ImGui::PushFont(GetUiFont());
+
     ImGui::SetNextWindowSize(ImVec2(260.0f, 130.0f), ImGuiCond_FirstUseEver);
     if (!ImGui::Begin("Spectator List", &g_Esp.showSpectatorList,
         ImGuiWindowFlags_NoCollapse)) {
         ImGui::End();
+        if (GetUiFont()) ImGui::PopFont();
         return;
     }
 
@@ -113,6 +121,7 @@ void RenderSpectatorListWindow() {
             ImGui::BulletText("%s", spectator.c_str());
     }
     ImGui::End();
+    if (GetUiFont()) ImGui::PopFont();
 }
 
 void ResetSpectatorList() {
