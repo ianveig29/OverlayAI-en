@@ -486,20 +486,26 @@ void LoadEspConfig(const char* path) {
         } else if (sscanf_s(p, "trigger_allow_smoke=%d", &i1) == 1) {
             g_Triggerbot.allowWhenInSmoke = i1 != 0;
         }
+        // Visual toggles load chain: each .ini line is matched against one
+        // key. Order does not matter, only one line ever matches.
         if (sscanf_s(p, "show_bomb_carrier=%d", &i1) == 1) {
             g_Esp.showBombCarrier = i1 != 0;
-        } else if (sscanf_s(p, "show_bomb_esp=%d", &i1) == 1) g_Esp.showBombEsp = i1 != 0;  
-
-        else if (sscanf_s(p, "show_tracer=%d", &i1) == 1) g_Esp.showTracer = i1 != 0;
-        else if (sscanf_s(p, "show_tracer_weapons=%d", &i1) == 1) g_Esp.showTracerWeapons = i1 != 0;
-        else if (sscanf_s(p, "show_grenade_esp=%d", &i1) == 1) g_Esp.showGrenadeEsp = i1 != 0;
-        else if (sscanf_s(p, "bomb_tracer=%d,%d,%d", &i1, &i2, &i3) == 3) {
+        } else if (sscanf_s(p, "show_bomb_esp=%d", &i1) == 1) {
+            g_Esp.showBombEsp = i1 != 0;
+        } else if (sscanf_s(p, "show_tracer=%d", &i1) == 1) {
+            g_Esp.showTracer = i1 != 0;
+        } else if (sscanf_s(p, "show_tracer_weapons=%d", &i1) == 1) {
+            g_Esp.showTracerWeapons = i1 != 0;
+        } else if (sscanf_s(p, "show_grenade_esp=%d", &i1) == 1) {
+            g_Esp.showGrenadeEsp = i1 != 0;
+        } else if (sscanf_s(p, "bomb_tracer=%d,%d,%d", &i1, &i2, &i3) == 3) {
             g_Esp.bombTracerR = i1; g_Esp.bombTracerG = i2; g_Esp.bombTracerB = i3;
         } else if (sscanf_s(p, "tracer_player=%d,%d,%d", &i1, &i2, &i3) == 3) {
             g_Esp.tracerPlayerR = i1; g_Esp.tracerPlayerG = i2; g_Esp.tracerPlayerB = i3;
         } else if (sscanf_s(p, "tracer_weapon=%d,%d,%d", &i1, &i2, &i3) == 3) {
             g_Esp.tracerWeaponR = i1; g_Esp.tracerWeaponG = i2; g_Esp.tracerWeaponB = i3;
         } else if (sscanf_s(p, "show_defuse_kits=%d", &i1) == 1) {
+
             g_Esp.showDefuseKits = i1 != 0;
         } else if (sscanf_s(p, "show_spectator_list=%d", &i1) == 1) {
             g_Esp.showSpectatorList = i1 != 0;
