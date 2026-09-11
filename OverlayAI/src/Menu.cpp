@@ -1025,15 +1025,49 @@ void RenderEspMenu() {
                 }
                 ImGui::Separator();
 
+                const int previousCategoryFilter = categoryFilter;
                 ImGui::SetNextItemWidth(125.0f);
                 ImGui::Combo("##InventoryCategory", &categoryFilter,
                     categoryNames, IM_ARRAYSIZE(categoryNames));
+
+                // Weapon selector: only shown when the active category is "Weapons".
+                // The list comes from the catalog itself (not hardcoded) so it never
+                // drifts out of sync if new weapons get added.
+                static bool weaponGroupsBuilt = false;
+                static std::vector<std::string> weaponGroupList;
+                static std::vector<const char*> weaponGroupPtrs;
+                if (!weaponGroupsBuilt) {
+                    weaponGroupsBuilt = true;
+                    std::vector<std::string> uniqueGroups;
+                    for (std::size_t index = 0; index < GetInventoryCatalogSize(); ++index) {
+                        const InventoryCatalogItem* item = GetInventoryCatalogItem(index);
+                        if (!item || item->type != LocalInventoryWeaponSkin) continue;
+                        if (std::find(uniqueGroups.begin(), uniqueGroups.end(), item->group) ==
+                            uniqueGroups.end())
+                            uniqueGroups.push_back(item->group);
+                    }
+                    std::sort(uniqueGroups.begin(), uniqueGroups.end());
+                    weaponGroupList.push_back(Localized("Todas las armas", "All weapons"));
+                    for (const std::string& group : uniqueGroups) weaponGroupList.push_back(group);
+                    for (const std::string& entry : weaponGroupList) weaponGroupPtrs.push_back(entry.c_str());
+                }
+                static int weaponFilter = 0;
+                const bool isWeaponsCategory = (categoryFilter == 2);
+                if (categoryFilter != previousCategoryFilter && !isWeaponsCategory)
+                    weaponFilter = 0; // do not leave a ghost filter active after leaving "Weapons"
+                if (isWeaponsCategory) {
+                    ImGui::SameLine();
+                    ImGui::SetNextItemWidth(150.0f);
+                    ImGui::Combo("##InventoryWeapon", &weaponFilter,
+                        weaponGroupPtrs.data(), static_cast<int>(weaponGroupPtrs.size()));
+                }
+
                 ImGui::SameLine();
                 ImGui::SetNextItemWidth(155.0f);
                 ImGui::Combo("##InventoryRarity", &rarityFilter,
                     rarityNames, IM_ARRAYSIZE(rarityNames));
                 ImGui::SameLine();
-                ImGui::SetNextItemWidth(-1.0f);
+                ImGui::SetNextItemWidth(110.0f);
                 ImGui::Combo("##InventorySort", &catalogSort,
                     sortNames, IM_ARRAYSIZE(sortNames));
                 ImGui::SetNextItemWidth(-1.0f);
@@ -1046,17 +1080,24 @@ void RenderEspMenu() {
                 static int cachedCategoryFilter = -1;
                 static int cachedRarityFilter = -1;
                 static int cachedCatalogSort = -1;
+                static int cachedWeaponFilter = -1;
                 static char cachedCatalogSearch[80]{};
                 const bool rebuildCatalogView = cachedCategoryFilter != categoryFilter ||
                     cachedRarityFilter != rarityFilter || cachedCatalogSort != catalogSort ||
+                    cachedWeaponFilter != weaponFilter ||
                     strcmp(cachedCatalogSearch, catalogSearch) != 0;
                 if (rebuildCatalogView) {
                     visibleCatalogItems.clear();
                     const int requestedType = categoryFilter - 1;
+                    // The weapon filter only applies with "Weapons" active; when hidden
+                    // (another category) its value must not filter anything out.
+                    const char* requestedWeapon = (isWeaponsCategory && weaponFilter > 0)
+                        ? weaponGroupList[weaponFilter].c_str() : nullptr;
                     for (std::size_t index = 0; index < GetInventoryCatalogSize(); ++index) {
                         const InventoryCatalogItem* item = GetInventoryCatalogItem(index);
                         if (!item || (requestedType >= 0 && item->type != requestedType) ||
                             (rarityFilter > 0 && strcmp(item->rarity, rarityNames[rarityFilter]) != 0) ||
+                            (requestedWeapon && strcmp(item->group, requestedWeapon) != 0) ||
                             !InventoryCatalogTextMatches(*item, catalogSearch))
                             continue;
                         visibleCatalogItems.push_back(static_cast<int>(index));
@@ -1084,6 +1125,7 @@ void RenderEspMenu() {
                     cachedCategoryFilter = categoryFilter;
                     cachedRarityFilter = rarityFilter;
                     cachedCatalogSort = catalogSort;
+                    cachedWeaponFilter = weaponFilter;
                     strncpy_s(cachedCatalogSearch, catalogSearch, _TRUNCATE);
                 }
                 if (!visibleCatalogItems.empty()) {
