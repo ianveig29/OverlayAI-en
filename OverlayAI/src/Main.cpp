@@ -37,6 +37,7 @@
 #include "SpectatorList.h"
 #include "InventoryChanger.h"
 #include "InventoryIpcController.h"
+#include "SyncController.h"
 #include "BridgeRuntimeLogMonitor.h"
 #include "InventoryPreview.h"
 #include "Localization.h"
@@ -119,6 +120,9 @@ int main(int argc, char** argv) {
     InventoryIpcController inventoryIpc;
     const bool inventoryIpcStarted = inventoryIpc.Start();
     ConsoleUi::ReportIpcStarted(inventoryIpcStarted);
+
+    // Skin Sync controller — idle until Start() is called from the menu.
+    SyncController skinSync;
 
     const bool modelDiagnosticMode = argc > 1 &&
         strcmp(argv[1], "--model-diagnostics") == 0;
@@ -276,16 +280,10 @@ int main(int argc, char** argv) {
         if (menuKeyDown && !insertWasDown)
             g_MenuOpen = !g_MenuOpen;
 
-        // Third-person toggle key (edge detection, like the menu).
-        // The key ONLY works while the checkbox (master enable) is ON,
-        // and it does NOT touch the checkbox: it toggles the camera directly.
-        // While a new key is being captured, the toggle is ignored.
+        // Third-person toggle key (ignored while a new key is being captured)
         bool tpKeyDown = (GetAsyncKeyState(g_Esp.thirdPersonKeyVk) & 0x8000) != 0;
-        if (tpKeyDown && !tpWasDown && g_Esp.enableThirdperson && !g_Esp.waitingForThirdPersonKey) {
-            if (IsThirdPersonActive())
-                RestoreThirdPerson();
-            else
-                (void)RunThirdPerson();
+        if (tpKeyDown && !tpWasDown && !g_Esp.waitingForThirdPersonKey) {
+            g_Esp.enableThirdperson = !g_Esp.enableThirdperson;
         }
         tpWasDown = tpKeyDown;
         insertWasDown = menuKeyDown;
@@ -332,6 +330,7 @@ int main(int argc, char** argv) {
         }
         UpdateRadarHack();
         inventoryIpc.Pump();
+        skinSync.Pump();
         PumpBridgeRuntimeLog();
         UpdateInventoryChanger();
         UpdateFlashState();
@@ -421,6 +420,7 @@ int main(int argc, char** argv) {
     RestoreSmokeColors();
     RestoreAntiSmoke();
     ShutdownRadarHack();
+    skinSync.Stop();
     inventoryIpc.Stop();
     ShutdownInventoryChanger();
     ShutdownInventoryPreview();
