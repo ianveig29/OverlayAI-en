@@ -206,6 +206,7 @@ const char* GetLocalInventoryItemTypeName(int type) {
         return Localized("Caja/Contenedor", "Case/Container");
     case LocalInventoryKey: return Localized("Llave", "Key");
     case LocalInventorySticker: return Localized("Sticker", "Sticker");
+    case LocalInventoryCharm: return Localized("Llavero", "Charm");
     default: return Localized("Desconocido", "Unknown");
     }
 }

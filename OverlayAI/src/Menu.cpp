@@ -935,7 +935,8 @@ void RenderEspMenu() {
                     Localized("Guantes", "Gloves"), Localized("Agentes", "Agents"),
                     Localized("Coleccionables", "Collectibles"),
                     Localized("Cajas/Contenedores", "Cases/Containers"),
-                    Localized("Llaves", "Keys"), "Stickers"
+                    Localized("Llaves", "Keys"), "Stickers",
+                    Localized("Llaveros", "Charms")
                 };
                 const char* rarityNames[] = {
                     Localized("Todas las rarezas", "All rarities"),

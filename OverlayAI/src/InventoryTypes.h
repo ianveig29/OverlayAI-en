@@ -18,6 +18,8 @@ enum LocalInventoryItemType {
     LocalInventoryContainer = 6,
     LocalInventoryKey = 7,
     LocalInventorySticker = 8,
+    // Llaveros (charms): colgantes decorativos que se adjuntan a las armas.
+    LocalInventoryCharm = 9,
     LocalInventoryItemTypeCount
 };
 
