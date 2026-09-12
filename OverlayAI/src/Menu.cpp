@@ -11,6 +11,7 @@
 #include "Bhop.h"
 #include "ThirdPerson.h"
 #include "RecoilControl.h"
+#include "ViewPunch.h"
 #include "Stats.h"
 #include "WeaponIcons.h"
 #include "InventoryCatalog.h"
@@ -903,6 +904,41 @@ void RenderEspMenu() {
                     "RCS strength##rcs_strength"), &g_Aim.rcsStrengthPercent, 0, 100, "%d%%");
                 if (g_Aim.recoilControlSystem)
                     ImGui::Text("Frames compensated: %u", GetRCSCompensationCount());
+
+                ImGui::Separator();
+                ImGui::TextUnformatted(Localized("Anti View Punch",
+                    "Anti View Punch"));
+                ImGui::Checkbox(Localized("Kick de camara instantaneo##avp_enabled",
+                    "Instant camera kick decay##avp_enabled"), &g_Aim.enableAntiViewPunch);
+                ImGui::SliderInt(Localized("Decay objetivo##avp_decay",
+                    "Target decay##avp_decay"), &g_Aim.antiViewPunchDecay, 20, 999, "%.0f");
+                ImGui::TextDisabled(Localized(
+                    "Acelera cuanto tarda en disolverse la patada de camara al recibir dano (ConVar view_punch_decay). OJO en MM: el server conserva su propio decay, probalo primero en bots.",
+                    "Speeds up how fast the camera kick from damage dissolves (view_punch_decay ConVar). WARNING in MM: the server keeps its own decay, test on bots first."));
+                {
+                    const AntiViewPunchStatus avp = GetAntiViewPunchStatus();
+                    if (avp.failReason == 2) {
+                        ImGui::TextColored(ImVec4(1.f, 0.2f, 0.2f, 1.f),
+                            Localized("Estado: offset vencido (update del juego?) - ver ViewPunch.h",
+                                "Status: stale offset (game update?) - see ViewPunch.h"));
+                    } else if (avp.failReason == 3) {
+                        ImGui::TextColored(ImVec4(1.f, 0.2f, 0.2f, 1.f),
+                            Localized("Estado: fallo la escritura en memoria",
+                                "Status: memory write failed"));
+                    } else if (avp.failReason == 4) {
+                        ImGui::TextColored(ImVec4(1.f, 0.8f, 0.2f, 1.f),
+                            Localized("Estado: lectura invalida, reintentando",
+                                "Status: invalid read, retrying"));
+                    } else if (avp.failReason == 1) {
+                        ImGui::TextDisabled(Localized("Estado: esperando el juego...",
+                            "Status: waiting for the game..."));
+                    } else if (avp.originalValue > 0.f) {
+                        ImGui::Text(Localized("Decay actual: %.0f (original %.0f)%s",
+                            "Current decay: %.0f (original %.0f)%s"),
+                            avp.currentValue, avp.originalValue,
+                            avp.active ? Localized(" [activo]", " [active]") : "");
+                    }
+                }
 
                 ImGui::EndTabItem();
             }

@@ -229,4 +229,10 @@ struct AimSettings {
     bool recoilControlSystem = false;
     // RCS compensation strength in percent (100 = perfect).
     int rcsStrengthPercent = 100;
+    // Anti View Punch: speeds up how fast the camera kick from damage
+    // dissolves (view_punch_decay ConVar). It does not fight the punch
+    // system: it just makes the kick disappear almost instantly.
+    bool enableAntiViewPunch = false;
+    // Target decay while the feature is active (999 = instant).
+    int antiViewPunchDecay = 999;
 };

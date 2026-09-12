@@ -18,6 +18,7 @@ namespace Offsets {
     uintptr_t dwWeaponC4 = 0x0;
     uintptr_t dwThirdPersonPatch = 0xB1EB91;
     uintptr_t dwThirdPersonValue = 0x23E2838;
+uintptr_t dwViewPunchDecayConVar = 0x239CE58; // pointer to the view_punch_decay ConVar (CE 12/09/2026)
     uintptr_t dwCSGOInput = 0x23DBC70;
     uintptr_t dwGlobalVars = 0x208ED60;
     uintptr_t dwLocalPlayerController = 0x237DBA0;
@@ -178,6 +179,7 @@ static void ApplyOffsetKey(const std::string& ks, uintptr_t v) {
     if (ks == "dwWeaponC4") { Offsets::dwWeaponC4 = v; return; }
     if (ks == "dwThirdPersonPatch") { Offsets::dwThirdPersonPatch = v; return; }
     if (ks == "dwThirdPersonValue") { Offsets::dwThirdPersonValue = v; return; }
+    if (ks == "dwViewPunchDecayConVar") { Offsets::dwViewPunchDecayConVar = v; return; }
     if (ks == "dwCSGOInput") { Offsets::dwCSGOInput = v; return; }
     if (ks == "m_iHealth") { Offsets::m_iHealth = v; return; }
     if (ks == "m_hPlayerPawn") { Offsets::m_hPlayerPawn = v; return; }
@@ -362,7 +364,7 @@ void LoadOffsetsFromJSON(const char* path) {
     };
 
     const char* keys[] = {
-        "dwEntityList", "dwGameEntitySystem_highestEntityIndex", "dwViewMatrix", "dwViewAngles", "dwViewRender", "dwGlobalVars", "dwLocalPlayerController", "dwLocalPlayerPawn", "dwWeaponC4", "dwCSGOInput", "dwThirdPersonPatch", "dwThirdPersonValue",
+        "dwEntityList", "dwGameEntitySystem_highestEntityIndex", "dwViewMatrix", "dwViewAngles", "dwViewRender", "dwGlobalVars", "dwLocalPlayerController", "dwLocalPlayerPawn", "dwWeaponC4", "dwCSGOInput", "dwThirdPersonPatch", "dwThirdPersonValue", "dwViewPunchDecayConVar",
         "m_hPlayerPawn", "m_bControllingBot", "m_bHasFemaleVoice", "m_iPawnHealth", "m_bPawnIsAlive", "m_iTeamNum", "m_iHealth", "m_lifeState", "m_pGameSceneNode", "m_hOwnerEntity", "m_hHudModelArms", "m_hMyWearables", "m_pOwner", "m_pChild", "m_pNextSibling", "m_vecAbsOrigin", "m_vOldOrigin", "m_pBoneArray", "m_boneStride", "m_modelState", "m_hModel", "m_ModelName", "m_nHitboxSet",
         "m_iConnected", "m_iszPlayerName", "m_sSanitizedPlayerName", "m_entitySpottedState", "m_bSpotted", "m_bSpottedByMask",
         "m_pItemServices", "m_bHasDefuser", "m_bHasHelmet", "m_ArmorValue", "m_iIDEntIndex", "m_fFlags", "m_pWeaponServices", "m_hActiveWeapon", "m_nSubclassID", "m_hViewmodelAttachment",
@@ -566,6 +568,7 @@ std::vector<LoadedOffsetEntry> GetLoadedOffsetsSnapshot() {
         { "dwWeaponC4", Offsets::dwWeaponC4, Group::Core },
         { "dwThirdPersonPatch", Offsets::dwThirdPersonPatch, Group::Core },
         { "dwThirdPersonValue", Offsets::dwThirdPersonValue, Group::Core },
+        { "dwViewPunchDecayConVar", Offsets::dwViewPunchDecayConVar, Group::Core },
         { "dwCSGOInput", Offsets::dwCSGOInput, Group::Core },
         { "m_hPlayerPawn", Offsets::m_hPlayerPawn, Group::Core },
         { "m_bControllingBot", Offsets::m_bControllingBot, Group::Core },

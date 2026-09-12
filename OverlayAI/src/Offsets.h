@@ -17,6 +17,9 @@ namespace Offsets {
     extern uintptr_t dwWeaponC4;
     extern uintptr_t dwThirdPersonPatch;
     extern uintptr_t dwThirdPersonValue;
+// Static pointer in client.dll to the view_punch_decay ConVar object
+// (custom key from 12/09/2026: the dumper does not provide it; CE recovery in ViewPunch.h).
+extern uintptr_t dwViewPunchDecayConVar;
     extern uintptr_t dwCSGOInput;
 
     // Bomb / C4

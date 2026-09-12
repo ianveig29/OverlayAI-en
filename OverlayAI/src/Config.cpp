@@ -195,6 +195,8 @@ void SaveEspConfig(const char* path) {
     fprintf(f, "show_money=%d\n", g_Esp.showMoney ? 1 : 0);
     fprintf(f, "fake_profile=%d\n", g_Esp.fakeProfile ? 1 : 0);
     fprintf(f, "rcs_enabled=%d\n", g_Aim.recoilControlSystem ? 1 : 0);
+    fprintf(f, "antiviewpunch_enabled=%d\n", g_Aim.enableAntiViewPunch ? 1 : 0);
+    fprintf(f, "antiviewpunch_decay=%d\n", g_Aim.antiViewPunchDecay);
     fprintf(f, "rcs_strength=%d\n", g_Aim.rcsStrengthPercent);
     fprintf(f, "flash_opacity_percent=%d\n", g_Esp.antiFlashOpacityPercent);
     fprintf(f, "flash_threshold=%f\n", g_Esp.flashThreshold);
@@ -465,6 +467,10 @@ void LoadEspConfig(const char* path) {
         } else if (sscanf_s(p, "fake_profile=%d", &i1) == 1) {
             g_Esp.fakeProfile = i1 != 0;
         } else if (sscanf_s(p, "rcs_enabled=%d", &i1) == 1) {
+        } else if (sscanf_s(p, "antiviewpunch_enabled=%d", &i1) == 1) {
+            g_Aim.enableAntiViewPunch = (i1 != 0);
+        } else if (sscanf_s(p, "antiviewpunch_decay=%d", &i1) == 1) {
+            if (i1 >= 20 && i1 <= 999) g_Aim.antiViewPunchDecay = i1;
             g_Aim.recoilControlSystem = i1 != 0;
         } else if (sscanf_s(p, "rcs_strength=%d", &i1) == 1) {
             if (i1 >= 0 && i1 <= 100) g_Aim.rcsStrengthPercent = i1;

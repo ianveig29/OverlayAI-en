@@ -28,6 +28,7 @@
 #include "Entity.h"
 #include "AntiFlash.h"
 #include "RecoilControl.h"
+#include "ViewPunch.h"
 #include "AntiSmoke.h"
 #include "SmokeColor.h"
 #include "OtherGlow.h"
@@ -382,6 +383,9 @@ int main(int argc, char** argv) {
         // RCS: compensates recoil into the view angles every frame.
         RunRCS();
 
+        // Anti View Punch: re-asserts the ConVar decay every frame.
+        UpdateAntiViewPunch();
+
         // Third person: the checkbox is the master enable. Checking it (or
         // pressing the toggle key, which flips the checkbox) activates the
         // camera right away; unchecking restores it. If applying fails
@@ -450,6 +454,7 @@ int main(int argc, char** argv) {
     ShutdownBhop();
     RestoreThirdPerson();
     RestoreMoneyReveal();
+    ShutdownAntiViewPunch();
     RestoreAntiFlashOverrides();
     RestoreSmokeColors();
     RestoreAntiSmoke();

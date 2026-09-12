@@ -3,6 +3,7 @@
     "dwCSGOInput": 37516008,
     "dwThirdPersonPatch": 11660177,
     "dwThirdPersonValue": 37627960,
+    "dwViewPunchDecayConVar": 37342808,
     "dwEntityList": 39116368,
     "dwGameEntitySystem": 39116368,
     "dwGameEntitySystem_highestEntityIndex": 8336,
