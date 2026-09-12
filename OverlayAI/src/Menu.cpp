@@ -900,9 +900,9 @@ void RenderEspMenu() {
                 ImGui::TextDisabled(Localized("Compensa de verdad el retroceso: las balas pegan donde apuntas. Diferencia con Quitar Aim Punch: aca la mira SE MUEVE para compensar (el crosshair dice la verdad), alla solo se esconde el visual.",
                     "Actually compensates recoil: bullets land where you aim. Difference from Quit Aim Punch: here the crosshair DOES move to compensate (it tells the truth), there the visual kick is only hidden."));
                 ImGui::SliderInt(Localized("Fuerza RCS (vertical)##rcs_strength",
-                    "RCS strength (vertical)##rcs_strength"), &g_Aim.rcsStrengthPercent, 0, 115, "%d%%");
+                    "RCS strength (vertical)##rcs_strength"), &g_Aim.rcsStrengthPercent, 0, 200, "%d%%");
                 ImGui::SliderInt(Localized("Fuerza RCS horizontal##rcs_strength_h",
-                    "RCS horizontal strength##rcs_strength_h"), &g_Aim.rcsStrengthHorizontalPercent, 0, 115, "%d%%");
+                    "RCS horizontal strength##rcs_strength_h"), &g_Aim.rcsStrengthHorizontalPercent, 0, 200, "%d%%");
                 ImGui::Checkbox(Localized("Feed-forward: compensa el punch antes de que crezca##rcs_ff",
                     "Feed-forward: compensates punch before it grows##rcs_ff"), &g_Aim.rcsFeedForward);
                 if (g_Aim.recoilControlSystem)

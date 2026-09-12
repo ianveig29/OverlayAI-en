@@ -469,9 +469,9 @@ void LoadEspConfig(const char* path) {
         } else if (sscanf_s(p, "rcs_enabled=%d", &i1) == 1) {
             g_Aim.recoilControlSystem = i1 != 0;
         } else if (sscanf_s(p, "rcs_strength=%d", &i1) == 1) {
-            if (i1 >= 0 && i1 <= 115) g_Aim.rcsStrengthPercent = i1;
+            if (i1 >= 0 && i1 <= 200) g_Aim.rcsStrengthPercent = i1;
         } else if (sscanf_s(p, "rcs_strength_horizontal=%d", &i1) == 1) {
-            if (i1 >= 0 && i1 <= 115) g_Aim.rcsStrengthHorizontalPercent = i1;
+            if (i1 >= 0 && i1 <= 200) g_Aim.rcsStrengthHorizontalPercent = i1;
         } else if (sscanf_s(p, "rcs_feedforward=%d", &i1) == 1) {
             g_Aim.rcsFeedForward = i1 != 0;
         } else if (sscanf_s(p, "flash_opacity_percent=%d", &i1) == 1) {

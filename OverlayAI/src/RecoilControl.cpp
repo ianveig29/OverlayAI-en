@@ -49,8 +49,19 @@ namespace {
 
     // Punch velocity smoothed (EMA) and feed-forward limits.
     constexpr float kFfAlpha = 0.25f;   // converges in ~4 frames
-    constexpr float kMaxFFDegrees = 0.35f;  // projection cap per frame
+    // Projection cap per frame. Previously 0.35: at 64 ticks the real
+    // impulse of a bullet can exceed that and the feed-forward was being
+    // clipped right at the peak, where it matters most (Dust 2 spray
+    // test: the FF "was not noticeable"). 1.0 degrees covers the
+    // per-bullet impulse at low fps without letting a glitch jerk the aim.
+    constexpr float kMaxFFDegrees = 1.0f;
     Vector3 g_ffVel{ 0.0f, 0.0f, 0.0f };
+    // Cold start: with the EMA starting at 0 and alpha 0.25, the trend
+    // took ~4 frames to "catch up" - exactly the first shots of the
+    // spray, where recoil grows the fastest. With the seed, the FIRST
+    // velocity reading goes in raw and the projection contributes from
+    // the second bullet instead of ramping up.
+    bool g_ffSeeded = false;
 
     // Returns the local player's pawn (same criteria as AntiFlash).
     uintptr_t GetLocalPawnFromSnapshot() {
@@ -73,7 +84,7 @@ void RunRCS() {
     // so the next activation starts clean).
     if (!g_Aim.recoilControlSystem) {
         g_prevPunch = { 0.0f, 0.0f, 0.0f };
-        g_ffVel = { 0.0f, 0.0f, 0.0f };
+        g_ffVel = { 0.0f, 0.0f, 0.0f }; g_ffSeeded = false;
         return;
     }
     if (!mem.hProcess || !mem.clientModule) return;
@@ -88,7 +99,7 @@ void RunRCS() {
     const uintptr_t pawn = GetLocalPawnFromSnapshot();
     if (!IsValidPtr(pawn)) {
         g_prevPunch = { 0.0f, 0.0f, 0.0f };
-        g_ffVel = { 0.0f, 0.0f, 0.0f };
+        g_ffVel = { 0.0f, 0.0f, 0.0f }; g_ffSeeded = false;
         return;
     }
 
@@ -96,7 +107,7 @@ void RunRCS() {
     const uintptr_t aimServices = mem.Read<uintptr_t>(pawn + Offsets::m_pAimPunchServices);
     if (!IsValidPtr(aimServices)) {
         g_prevPunch = { 0.0f, 0.0f, 0.0f };
-        g_ffVel = { 0.0f, 0.0f, 0.0f };
+        g_ffVel = { 0.0f, 0.0f, 0.0f }; g_ffSeeded = false;
         return;
     }
 
@@ -138,9 +149,14 @@ void RunRCS() {
             // to frame shaking plus constant writes fighting the engine =
             // the "performance problem"). The EMA tracks the punch TREND,
             // not the instantaneous noise.
-            g_ffVel.x += (vel.x - g_ffVel.x) * kFfAlpha;
-            g_ffVel.y += (vel.y - g_ffVel.y) * kFfAlpha;
-            g_ffVel.z += (vel.z - g_ffVel.z) * kFfAlpha;
+            if (!g_ffSeeded) {
+                g_ffVel = vel;   // first reading after a reset: raw
+                g_ffSeeded = true;
+            } else {
+                g_ffVel.x += (vel.x - g_ffVel.x) * kFfAlpha;
+                g_ffVel.y += (vel.y - g_ffVel.y) * kFfAlpha;
+                g_ffVel.z += (vel.z - g_ffVel.z) * kFfAlpha;
+            }
 
             // Only project GROWTH: if the trend says the punch is SHRINKING
             // (decay between bullets) there is nothing to lead with (the
@@ -179,23 +195,25 @@ void RunRCS() {
         const int shotsFired = mem.Read<int>(pawn + Offsets::m_iShotsFired);
         if (shotsFired <= 1) {
             g_prevPunch = target;
-            g_ffVel = { 0.0f, 0.0f, 0.0f };  // the spray ended: drop the stale trend
+            g_ffVel = { 0.0f, 0.0f, 0.0f }; g_ffSeeded = false;  // the spray ended: drop the stale trend
             return;
         }
     }
 
     // Step 4: delta against the previous frame, scaled by strength.
-    // Vertical strength (pitch, punch axis X): up to 115%. 100% leaves a
+    // Vertical strength (pitch, punch axis X): up to 200%. 100% leaves a
     // small residual because the client punch is an approximation of the
     // real recoil (server-side since the April 2026 update); the excess
-    // eats that residual. Horizontal strength is separate (less % keeps
-    // control during spray transfers between players).
+    // eats that residual AND additionally pushes the aim opposite to the
+    // recoil (aggressive overcompensation, Dust 2 spray test). Horizontal
+    // strength is separate (less % keeps control during spray transfers
+    // between players).
     const float strengthVert = (g_Aim.rcsStrengthPercent < 0) ? 0.0f :
-        (g_Aim.rcsStrengthPercent > 115) ? 1.15f :
+        (g_Aim.rcsStrengthPercent > 200) ? 2.0f :
         static_cast<float>(g_Aim.rcsStrengthPercent) / 100.0f;
     const float strengthHoriz =
         (g_Aim.rcsStrengthHorizontalPercent < 0) ? 0.0f :
-        (g_Aim.rcsStrengthHorizontalPercent > 115) ? 1.15f :
+        (g_Aim.rcsStrengthHorizontalPercent > 200) ? 2.0f :
         static_cast<float>(g_Aim.rcsStrengthHorizontalPercent) / 100.0f;
 
     const Vector3 rawDelta{
