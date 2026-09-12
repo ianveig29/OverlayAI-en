@@ -68,17 +68,26 @@ namespace {
     // between game updates. They are marked as wildcards (??) so the pattern
     // stays valid after any recompile.
     //
-    // Full pattern: 48 8B 05 ?? ?? ?? ?? 48 85 C0 74 40
-    // The 0x74 byte (target) is at index 10 of the pattern.
+    // Full pattern, taken from the recreated disassembly of 09/12/2026
+    // (client.dll+B1EB87..B1EB96):
+    //   48 8B 05 ?? ?? ?? ??   mov rax,[client.dll+23C72E8]  (dwCSGOInput)
+    //   48 85 C0               test rax,rax                  (null check)
+    //   74 40                  je client.dll+B1EBD3          (TARGET: 74->75)
+    //   8B 40 30               mov eax,[rax+30]
+    // The "mov rax,[rip+...] / test rax,rax" is the signature of the input
+    // pointer null check; the 3 extra bytes (8B 40 30, the load right after
+    // the jump) make the pattern more specific and prevent false positives
+    // during the scan. The 0x74 byte (target) is at index 10 of the pattern.
 
     struct PatternByte { uint8_t value; bool wildcard; };
 
-    constexpr std::array<PatternByte, 12> g_pattern = {{
+    constexpr std::array<PatternByte, 15> g_pattern = {{
         {0x48, false}, {0x8B, false}, {0x05, false},
         {0x00, true},  {0x00, true},  {0x00, true},  {0x00, true},  // RIP-relative (wildcard)
         {0x48, false}, {0x85, false}, {0xC0, false},               // test rax, rax
         {0x74, false},                                                // JE (target)
-        {0x40, false}                                                 // jump offset
+        {0x40, false},                                                // jump offset
+        {0x8B, false}, {0x40, false}, {0x30, false}                 // mov eax,[rax+30]
     }};
 
     // Index of the 0x74 byte within g_pattern (the one we patch).
