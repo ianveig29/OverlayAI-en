@@ -47,6 +47,11 @@ namespace {
     std::chrono::steady_clock::time_point g_lastFrame =
         std::chrono::steady_clock::now();
 
+    // Punch velocity smoothed (EMA) and feed-forward limits.
+    constexpr float kFfAlpha = 0.25f;   // converges in ~4 frames
+    constexpr float kMaxFFDegrees = 0.35f;  // projection cap per frame
+    Vector3 g_ffVel{ 0.0f, 0.0f, 0.0f };
+
     // Returns the local player's pawn (same criteria as AntiFlash).
     uintptr_t GetLocalPawnFromSnapshot() {
         const uintptr_t pawn = GetCurrentFrameSnapshot().localPawn;
@@ -68,6 +73,7 @@ void RunRCS() {
     // so the next activation starts clean).
     if (!g_Aim.recoilControlSystem) {
         g_prevPunch = { 0.0f, 0.0f, 0.0f };
+        g_ffVel = { 0.0f, 0.0f, 0.0f };
         return;
     }
     if (!mem.hProcess || !mem.clientModule) return;
@@ -82,6 +88,7 @@ void RunRCS() {
     const uintptr_t pawn = GetLocalPawnFromSnapshot();
     if (!IsValidPtr(pawn)) {
         g_prevPunch = { 0.0f, 0.0f, 0.0f };
+        g_ffVel = { 0.0f, 0.0f, 0.0f };
         return;
     }
 
@@ -89,6 +96,7 @@ void RunRCS() {
     const uintptr_t aimServices = mem.Read<uintptr_t>(pawn + Offsets::m_pAimPunchServices);
     if (!IsValidPtr(aimServices)) {
         g_prevPunch = { 0.0f, 0.0f, 0.0f };
+        g_ffVel = { 0.0f, 0.0f, 0.0f };
         return;
     }
 
@@ -124,9 +132,38 @@ void RunRCS() {
     if (g_Aim.rcsFeedForward && Offsets::m_predictableBaseAngleVel != 0) {
         Vector3 vel{ 0.0f, 0.0f, 0.0f };
         if (ReadAngle(aimServices + Offsets::m_predictableBaseAngleVel, vel)) {
-            target = Vector3{ punch.x + vel.x * dt,
-                              punch.y + vel.y * dt,
-                              punch.z + vel.z * dt };
+            // EMA over the velocity: the raw value oscillates frame to
+            // frame (per-bullet impulse + decay between bullets) and
+            // projecting the raw value made the crosshair VIBRATE (frame
+            // to frame shaking plus constant writes fighting the engine =
+            // the "performance problem"). The EMA tracks the punch TREND,
+            // not the instantaneous noise.
+            g_ffVel.x += (vel.x - g_ffVel.x) * kFfAlpha;
+            g_ffVel.y += (vel.y - g_ffVel.y) * kFfAlpha;
+            g_ffVel.z += (vel.z - g_ffVel.z) * kFfAlpha;
+
+            // Only project GROWTH: if the trend says the punch is SHRINKING
+            // (decay between bullets) there is nothing to lead with (the
+            // negative delta gets compensated when it happens); leading it
+            // caused overshoot. And the projection never exceeds the
+            // per-frame cap (anti-jump if dt misbehaves).
+            const float ffx = g_ffVel.x * dt;
+            const float ffy = g_ffVel.y * dt;
+            const float ffz = g_ffVel.z * dt;
+            Vector3 projection{ 0.0f, 0.0f, 0.0f };
+            if (ffx * punch.x > 0.0f) projection.x = ffx;  // same sign = growing
+            if (ffy * punch.y > 0.0f) projection.y = ffy;
+            if (ffz * punch.z > 0.0f) projection.z = ffz;
+            if (projection.x >  kMaxFFDegrees) projection.x =  kMaxFFDegrees;
+            if (projection.x < -kMaxFFDegrees) projection.x = -kMaxFFDegrees;
+            if (projection.y >  kMaxFFDegrees) projection.y =  kMaxFFDegrees;
+            if (projection.y < -kMaxFFDegrees) projection.y = -kMaxFFDegrees;
+            if (projection.z >  kMaxFFDegrees) projection.z =  kMaxFFDegrees;
+            if (projection.z < -kMaxFFDegrees) projection.z = -kMaxFFDegrees;
+
+            target = Vector3{ punch.x + projection.x,
+                              punch.y + projection.y,
+                              punch.z + projection.z };
         }
     }
 
@@ -142,6 +179,7 @@ void RunRCS() {
         const int shotsFired = mem.Read<int>(pawn + Offsets::m_iShotsFired);
         if (shotsFired <= 1) {
             g_prevPunch = target;
+            g_ffVel = { 0.0f, 0.0f, 0.0f };  // the spray ended: drop the stale trend
             return;
         }
     }
