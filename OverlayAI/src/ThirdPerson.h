@@ -18,6 +18,10 @@ void RestoreThirdPerson();
 // Returns true while the patch is currently applied.
 bool IsThirdPersonActive();
 
+// Status code of the last attempt (0 = applied). Used by the menu to show
+// WHY the apply failed instead of failing silently.
+int GetThirdPersonStatus();
+
 // Captures the key the user presses to assign the third-person
 // keybind (same as PollBhopKeyBind).
 void PollThirdPersonKeyBind();

@@ -38,7 +38,16 @@ namespace {
         uintptr_t valueAddress = 0;     // Address of the camera value (0 or 256)
         uint8_t   originalByte = 0;     // Original JE byte (0x74)
         bool      applied = false;       // true if the patch is active
-        bool      patternScanDone = false; // true if the pattern scan already ran this session
+        // Pattern-scan retry control: instead of scanning only once per
+        // session, allow a retry every 5 seconds while the feature is on.
+        ULONGLONG nextScanMs = 0;
+        // True when the dumper offset pointed at an invalid byte: stop
+        // trusting it and rely on the pattern scan instead.
+        bool      offsetAddressInvalid = false;
+        // True when patchAddress came from the dumper offset (vs. pattern).
+        bool      patchFromOffset = false;
+        // Last failure reason for the menu status line (0 = all ok).
+        int       lastFailReason = 0;
     };
 
     ThirdPersonPatchState g_tp;
@@ -182,17 +191,27 @@ bool RunThirdPerson() {
     //    missing. The pattern is generic (mov/test/je) and after a game
     //    recompile it can match a DIFFERENT instruction and silently patch
     //    the wrong JE - that is why it is the fallback, not the first choice.
-    if (!g_tp.patchAddress) {
+    // Resolve the JE address: 1) the auto-updater offset (source of
+    // truth), but if it already proved invalid (unexpected byte) never
+    // reuse it: it would point at the same wrong place forever. 2) the
+    // pattern scan, retried every 5 seconds instead of once per session:
+    // a later retry can win when the first attempt ran while the module
+    // was still loading or raced an offset refresh.
+    if (!g_tp.patchAddress && !g_tp.offsetAddressInvalid) {
         const uintptr_t offset = Offsets::dwThirdPersonPatch;
         if (offset != 0 &&
-            (mem.clientModuleSize == 0 || offset < mem.clientModuleSize))
+            (mem.clientModuleSize == 0 || offset < mem.clientModuleSize)) {
             g_tp.patchAddress = mem.clientModule + offset;
+            g_tp.patchFromOffset = true;
+        }
     }
-    if (!g_tp.patchAddress && !g_tp.patternScanDone) {
-        // Scan at most once per session: reading the whole client.dll on
-        // every retry would be far too expensive.
-        g_tp.patternScanDone = true;
-        g_tp.patchAddress = FindThirdPersonPatchByPattern();
+    if (!g_tp.patchAddress) {
+        const ULONGLONG nowMs = GetTickCount64();
+        if (nowMs >= g_tp.nextScanMs) {
+            g_tp.nextScanMs = nowMs + 5000;
+            g_tp.patchAddress = FindThirdPersonPatchByPattern();
+            g_tp.patchFromOffset = false;
+        }
     }
 
     // Resolve the camera value address (0 or 256).
@@ -200,13 +219,17 @@ bool RunThirdPerson() {
     // Previously this was a hardcoded absolute offset (dwThirdPersonValue = 0x23DBE98).
     // Now it's calculated dynamically: client.dll + dwCSGOInput + 0x228.
     const uintptr_t inputValue = Offsets::dwCSGOInput;
-    if (inputValue == 0) return false;
+    if (inputValue == 0) { g_tp.lastFailReason = 1; return false; }
     const uintptr_t valueOffset = inputValue + kThirdPersonValueSubOffset;
     if (mem.clientModuleSize != 0 && valueOffset >= mem.clientModuleSize)
         return false;
     g_tp.valueAddress = mem.clientModule + valueOffset;
 
-    if (!g_tp.patchAddress || !g_tp.valueAddress) return false;
+    if (!g_tp.patchAddress || !g_tp.valueAddress) {
+        g_tp.lastFailReason = !g_tp.patchAddress
+            ? (g_tp.offsetAddressInvalid ? 2 : 3) : 1;
+        return false;
+    }
 
     // Read the current JE byte to confirm it's the correct instruction.
     uint8_t current = 0;
@@ -225,6 +248,11 @@ bool RunThirdPerson() {
         // cached address so the next call re-resolves (updated offset or
         // pattern scan) instead of failing silently for the whole session.
         g_tp.patchAddress = 0;
+        // Mark the source as bad so we never retry the same wrong address
+        // forever: if it came from the dumper offset, the next attempt goes
+        // straight to the pattern scan.
+        if (g_tp.patchFromOffset) g_tp.offsetAddressInvalid = true;
+        g_tp.lastFailReason = 4;
         return false;
     } else {
         g_tp.originalByte = current;
@@ -232,17 +260,22 @@ bool RunThirdPerson() {
 
     // Step 1: Write 256 at the camera value address.
     // This tells the engine "the camera is in third person".
-    if (!WriteThirdPersonValue(g_tp.valueAddress, 256))
+    if (!WriteThirdPersonValue(g_tp.valueAddress, 256)) {
+        g_tp.lastFailReason = 5;
         return false;
+    }
 
     // Step 2: Patch JE (0x74) to JNE (0x75).
     // If the byte is already 0x75, no need to write again.
     if (current == 0x74) {
-        if (!WriteExecutableByte(g_tp.patchAddress, 0x74, 0x75))
+        if (!WriteExecutableByte(g_tp.patchAddress, 0x74, 0x75)) {
+            g_tp.lastFailReason = 5;
             return false;
+        }
     }
 
     g_tp.applied = true;
+    g_tp.lastFailReason = 0;
     return true;
 }
 
@@ -262,6 +295,16 @@ void RestoreThirdPerson() {
 
 bool IsThirdPersonActive() {
     return g_tp.applied;
+}
+
+int GetThirdPersonStatus() {
+    // 0 = applied, 1 = waiting for base/offsets, 2 = invalid dumper
+    // offset, 3 = pattern not found, 4 = unexpected byte, 5 = write
+    // failure. Shown in the menu so a failure is never invisible again.
+    if (g_tp.applied) return 0;
+    if (!mem.clientModule || Offsets::dwCSGOInput == 0) return 1;
+    if (g_tp.lastFailReason != 0) return g_tp.lastFailReason;
+    return 1;
 }
 
 // ---- Keybind capture -----------------------------------------------------

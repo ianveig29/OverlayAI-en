@@ -214,6 +214,15 @@ namespace {
     // As CT the game does NOT show the dropped C4 on the radar (Ts get
     // it for free), so this marker is the only way to locate it from
     // a distance. Drawn through walls, same as the ESP boxes.
+    // Forward declaration: the full definition lives below in the player
+    // box section, and both the C4 and the dropped weapons use it to draw
+    // their own box.
+    static bool ComputeCollisionScreenBox(const Vector3& mins, const Vector3& maxs,
+        const Vector3& origin, const Matrix4x4& viewMatrix,
+        int screenWidth, int screenHeight, float& xOut, float& yOut,
+        float& wOut, float& hOut);
+
+    // Bomb ESP: marker drawn over the dropped C4.
     static void DrawDroppedBombMarker(ImDrawList* drawList, const Matrix4x4& viewMatrix,
         int screenWidth, int screenHeight, uintptr_t localPawn) {
         if (!g_Esp.showBombEsp) return;
@@ -248,6 +257,23 @@ namespace {
             meters = std::sqrt(dx * dx + dy * dy + dz * dz) * 0.01905f;
         }
 
+        // Optional box around the C4 (dropped or planted): a cube the size
+        // of the model (the C4 is roughly 60 cm long/wide).
+        if (g_Esp.showBombEspBox) {
+            float bx, by, bw, bh;
+            const Vector3 boxMins(-16.0f, -16.0f, -4.0f);
+            const Vector3 boxMaxs(16.0f, 16.0f, 12.0f);
+            if (ComputeCollisionScreenBox(boxMins, boxMaxs, bombPos, viewMatrix,
+                    screenWidth, screenHeight, bx, by, bw, bh)) {
+                const ImU32 bombBoxColor = IM_COL32(
+                    g_Esp.bombTracerR, g_Esp.bombTracerG, g_Esp.bombTracerB, 230);
+                drawList->AddRect(ImVec2(bx - 1.0f, by - 1.0f),
+                    ImVec2(bx + bw + 1.0f, by + bh + 1.0f), outline, 0.0f, 0, 2.5f);
+                drawList->AddRect(ImVec2(bx, by), ImVec2(bx + bw, by + bh),
+                    bombBoxColor, 0.0f, 0, 1.2f);
+            }
+        }
+
         char label[48];
         if (meters >= 0.0f)
             snprintf(label, sizeof(label), "C4  %.0fm", meters);
@@ -277,13 +303,13 @@ namespace {
     // Rage style: locate enemies and valuable dropped weapons at a
     // glance, without turning the camera.
 
-    // Weapons that get a tracer when dropped on the floor.
-    // To add or remove a weapon just touch this list (the name is
-    // the entity designerName, all lowercase).
-    const char* const kTracerWeaponNames[] = {
-        "weapon_ak47", "weapon_awp", "weapon_m4a1",
-        "weapon_m4a1_silencer", "weapon_deagle"
-    };
+    // Dropped-weapon detector: any entity whose designerName starts with
+    // "weapon_" (rifles, AWP, pistols, grenades, knives...). There used to
+    // be a fixed list with only "power" weapons; now the tracer marks ALL
+    // weapons lying on the floor.
+    static bool MatchesTracerWeaponList(const char* name) {
+        return strncmp(name, "weapon_", 7) == 0;
+    }
 
     struct CachedGroundWeapon {
         uintptr_t entity = 0;
@@ -430,6 +456,23 @@ namespace {
             drawList->AddLine(crosshair, end, outline, 2.5f);
             drawList->AddLine(crosshair, end, lineColor, 1.2f);
             drawList->AddCircleFilled(end, 3.0f, outline, 12);
+
+            // Optional box around the dropped weapon: a small cube the size
+            // of a weapon on the floor (~35 cm per side).
+            if (g_Esp.showTracerWeaponBox) {
+                float bx, by, bw, bh;
+                const Vector3 boxMins(-9.0f, -9.0f, -9.0f);
+                const Vector3 boxMaxs(9.0f, 9.0f, 9.0f);
+                if (ComputeCollisionScreenBox(boxMins, boxMaxs, pos, viewMatrix,
+                        screenWidth, screenHeight, bx, by, bw, bh)) {
+                    const ImU32 weaponBoxColor = IM_COL32(
+                        g_Esp.tracerWeaponR, g_Esp.tracerWeaponG, g_Esp.tracerWeaponB, 220);
+                    drawList->AddRect(ImVec2(bx - 1.0f, by - 1.0f),
+                        ImVec2(bx + bw + 1.0f, by + bh + 1.0f), outline, 0.0f, 0, 2.5f);
+                    drawList->AddRect(ImVec2(bx, by), ImVec2(bx + bw, by + bh),
+                        weaponBoxColor, 0.0f, 0, 1.2f);
+                }
+            }
 
             char label[48];
             const char* shortName = w.name;
@@ -816,6 +859,63 @@ namespace {
         return std::isfinite(screen.x) && std::isfinite(screen.y);
     }
 
+    // Player tracer origin point based on the setting:
+    // 0 = screen center (crosshair), 1 = top, 2 = bottom.
+    static ImVec2 GetPlayerTracerOrigin(int screenWidth, int screenHeight) {
+        switch (g_Esp.tracerPlayerOrigin) {
+        case 1: return ImVec2((float)screenWidth * 0.5f, 0.0f);
+        case 2: return ImVec2((float)screenWidth * 0.5f, (float)screenHeight - 1.0f);
+        default: return ImVec2(
+            (float)screenWidth * 0.5f, (float)screenHeight * 0.5f);
+        }
+    }
+
+    // Projects a world point even when it is off-screen (but in front of
+    // the camera) and clamps the result to the nearest screen edge. When
+    // the point is behind the camera it uses the sign of the matrix
+    // "right" axis to pick which side edge to point at. This is the
+    // "always show" mode: the line never disappears, it just changes length.
+    static ImVec2 ClampDirectionToScreen(const Vector3& world,
+        Matrix4x4& viewMatrix, const ImVec2& origin,
+        int screenWidth, int screenHeight, bool& ok) {
+        ok = false;
+        const float clipW = world.x * viewMatrix.m[3][0] +
+            world.y * viewMatrix.m[3][1] +
+            world.z * viewMatrix.m[3][2] + viewMatrix.m[3][3];
+        const float clipX = world.x * viewMatrix.m[0][0] +
+            world.y * viewMatrix.m[0][1] +
+            world.z * viewMatrix.m[0][2] + viewMatrix.m[0][3];
+        const float clipY = world.x * viewMatrix.m[1][0] +
+            world.y * viewMatrix.m[1][1] +
+            world.z * viewMatrix.m[1][2] + viewMatrix.m[1][3];
+        if (!std::isfinite(clipW) || !std::isfinite(clipX) ||
+            !std::isfinite(clipY))
+            return ImVec2(0.0f, 0.0f);
+        if (clipW > 0.01f) {
+            // In front of the camera but outside the frustum: scale the
+            // ndc vector until it hits the first edge it crosses.
+            float ndcX = clipX / clipW;
+            float ndcY = clipY / clipW;
+            if (!std::isfinite(ndcX) || !std::isfinite(ndcY))
+                return ImVec2(0.0f, 0.0f);
+            const float scaleX = std::fabs(ndcX) > 1.0f ? 1.0f / std::fabs(ndcX) : 1.0f;
+            const float scaleY = std::fabs(ndcY) > 1.0f ? 1.0f / std::fabs(ndcY) : 1.0f;
+            const float scale = (std::min)(scaleX, scaleY);
+            ndcX *= scale;
+            ndcY *= scale;
+            ok = true;
+            return ImVec2((float)screenWidth * (0.5f + ndcX * 0.5f),
+                (float)screenHeight * (0.5f - ndcY * 0.5f));
+        }
+        // Behind the camera: the projection is mirrored, so the correct
+        // side edge is the opposite of the clipX sign.
+        ok = true;
+        if (clipX >= 0.0f) return ImVec2(0.0f, origin.y);
+        return ImVec2((float)screenWidth - 1.0f, origin.y);
+    }
+
+
+
     static bool ComputeSkeletonScreenBox(const SkeletonPose& pose,
         const Matrix4x4& viewMatrix, int screenWidth, int screenHeight,
         float& xOut, float& yOut, float& wOut, float& hOut)
@@ -992,6 +1092,9 @@ void RenderESP(int screenWidth, int screenHeight) {
         }
     }
 
+    // Local player position: used for the tracer distance labels.
+    const Vector3 tracerLocalPos = GetPawnWorldPos(frame.localPawn);
+
     // iterate over snapshot entities (already read)
     for (size_t entityIndex = 0; entityIndex < frame.entities.size(); ++entityIndex) {
         const EntitySnapshot& snap = frame.entities[entityIndex];
@@ -1058,18 +1161,52 @@ void RenderESP(int screenWidth, int screenHeight) {
             }
         }
 
-        if (!hasScreenBox || boxHeight <= 2.0f || boxWidth <= 2.0f) continue;
-
-        // Player tracer: semi-transparent white line from the crosshair
-        // to the center of the box.
+        // Player tracers: line from the configured origin (crosshair, top
+        // or bottom of the screen) to the player. With "always show" the
+        // line is also drawn when the player is out of view: it ends
+        // clamped to the screen edge, pointing at where they are, so you
+        // never lose track of anyone.
         if (g_Esp.showTracer) {
-            // Color configurable from the menu (Tracers section).
-            const ImVec2 tracerFrom((float)screenWidth * 0.5f, (float)screenHeight * 0.5f);
-            const ImVec2 tracerTo(topLeftX + boxWidth * 0.5f, topLeftY + boxHeight * 0.5f);
-            drawList->AddLine(tracerFrom, tracerTo, IM_COL32(0, 0, 0, 120), 2.5f);
-            drawList->AddLine(tracerFrom, tracerTo, IM_COL32(
-                g_Esp.tracerPlayerR, g_Esp.tracerPlayerG, g_Esp.tracerPlayerB, 110), 1.2f);
+            const ImVec2 tracerFrom = GetPlayerTracerOrigin(screenWidth, screenHeight);
+            ImVec2 tracerTo(0.0f, 0.0f);
+            bool tracerValid = false;
+            int tracerAlpha = 110;
+            if (hasScreenBox) {
+                tracerTo = ImVec2(topLeftX + boxWidth * 0.5f, topLeftY + boxHeight * 0.5f);
+                tracerValid = true;
+            } else if (g_Esp.tracerPlayerAlways) {
+                bool clampedOk = false;
+                tracerTo = ClampDirectionToScreen(feetWorld, viewMatrix, tracerFrom,
+                    screenWidth, screenHeight, clampedOk);
+                tracerValid = clampedOk;
+                tracerAlpha = 70;  // out of view: dimmer line
+            }
+            if (tracerValid) {
+                drawList->AddLine(tracerFrom, tracerTo, IM_COL32(0, 0, 0, 120), 2.5f);
+                drawList->AddLine(tracerFrom, tracerTo, IM_COL32(
+                    g_Esp.tracerPlayerR, g_Esp.tracerPlayerG, g_Esp.tracerPlayerB,
+                    tracerAlpha), 1.2f);
+                // Distance in meters next to the midpoint of the line.
+                if (g_Esp.tracerPlayerDistance &&
+                    std::isfinite(tracerLocalPos.x) && std::isfinite(tracerLocalPos.y) &&
+                    std::isfinite(tracerLocalPos.z)) {
+                    const float dx = feetWorld.x - tracerLocalPos.x;
+                    const float dy = feetWorld.y - tracerLocalPos.y;
+                    const float dz = feetWorld.z - tracerLocalPos.z;
+                    const float meters =
+                        std::sqrt(dx * dx + dy * dy + dz * dz) * 0.01905f;
+                    char tracerLabel[24];
+                    snprintf(tracerLabel, sizeof(tracerLabel), "%.0fm", meters);
+                    const ImVec2 mid((tracerFrom.x + tracerTo.x) * 0.5f,
+                        (tracerFrom.y + tracerTo.y) * 0.5f - 7.0f);
+                    DrawOutlinedText(drawList, mid, IM_COL32(
+                        g_Esp.tracerPlayerR, g_Esp.tracerPlayerG,
+                        g_Esp.tracerPlayerB, 255), tracerLabel);
+                }
+            }
         }
+
+        if (!hasScreenBox || boxHeight <= 2.0f || boxWidth <= 2.0f) continue;
 
         // start draw timer for this entity
         auto t_draw_start = std::chrono::high_resolution_clock::now();

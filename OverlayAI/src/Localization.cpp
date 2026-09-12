@@ -7,7 +7,9 @@
 #include <string>
 
 namespace {
-    UiLanguage g_language = UiLanguage::Spanish;
+    // This repo ships English by default: the language.cfg file only
+    // appears after the user switches language from the menu.
+    UiLanguage g_language = UiLanguage::English;
 
     std::filesystem::path GetLanguagePath() {
         wchar_t executablePath[MAX_PATH]{};
@@ -33,7 +35,7 @@ void InitializeLocalization() {
     std::ifstream input(GetLanguagePath());
     std::string value;
     if (input >> value)
-        g_language = value == "en" ? UiLanguage::English : UiLanguage::Spanish;
+        g_language = value == "es" ? UiLanguage::Spanish : UiLanguage::English;
 }
 
 UiLanguage GetUiLanguage() {

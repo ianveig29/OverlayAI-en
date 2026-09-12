@@ -593,6 +593,8 @@ void RenderEspMenu() {
                         DrawColorEdit(Localized("Color tracer C4##bomb_tracer_color",
                             "C4 tracer color##bomb_tracer_color"),
                             &g_Esp.bombTracerR, &g_Esp.bombTracerG, &g_Esp.bombTracerB);
+                        ImGui::Checkbox(Localized("Box alrededor de la C4##bomb_esp_box",
+                            "Box around the C4##bomb_esp_box"), &g_Esp.showBombEspBox);
                     }
 
                     // In-flight grenade ESP (independent from Bomb ESP).
@@ -612,17 +614,39 @@ void RenderEspMenu() {
                         "Player tracers##tracer_players"), &g_Esp.showTracer);
                     ImGui::Checkbox(Localized("Tracer a armas en el piso##tracer_weapons",
                         "Ground weapon tracers##tracer_weapons"), &g_Esp.showTracerWeapons);
-                    if (g_Esp.showTracer)
+                    if (g_Esp.showTracer) {
                         DrawColorEdit(Localized("Color tracer jugadores##tracer_player_color",
                             "Player tracer color##tracer_player_color"),
                             &g_Esp.tracerPlayerR, &g_Esp.tracerPlayerG, &g_Esp.tracerPlayerB);
+                        const char* tracerOrigins[] = {
+                            Localized("Mira (centro)", "Crosshair (center)"),
+                            Localized("Arriba", "Top"),
+                            Localized("Abajo", "Bottom")
+                        };
+                        ImGui::Combo(Localized("Origen de la linea##tracer_player_origin",
+                            "Line origin##tracer_player_origin"),
+                            &g_Esp.tracerPlayerOrigin, tracerOrigins, 3);
+                        ImGui::Checkbox(Localized("Distancia en metros##tracer_player_distance",
+                            "Distance in meters##tracer_player_distance"),
+                            &g_Esp.tracerPlayerDistance);
+                        ImGui::Checkbox(Localized("Mostrar siempre##tracer_player_always",
+                            "Always show lines##tracer_player_always"),
+                            &g_Esp.tracerPlayerAlways);
+                        if (g_Esp.tracerPlayerAlways)
+                            ImGui::TextDisabled(Localized(
+                                "Los jugadores fuera de la vista dibujan la linea recortada al borde de la pantalla.",
+                                "Off-screen players draw the line clamped to the screen edge."));
+                    }
                     if (g_Esp.showTracerWeapons) {
                         DrawColorEdit(Localized("Color tracer armas##tracer_weapon_color",
                             "Weapon tracer color##tracer_weapon_color"),
                             &g_Esp.tracerWeaponR, &g_Esp.tracerWeaponG, &g_Esp.tracerWeaponB);
+                        ImGui::Checkbox(Localized("Box en armas tiradas##tracer_weapon_box",
+                            "Box on dropped weapons##tracer_weapon_box"),
+                            &g_Esp.showTracerWeaponBox);
                         ImGui::TextDisabled(Localized(
-                            "Linea naranja a las armas valiosas tiradas: AWP, AK-47, M4A4, M4A1-S y Deagle.",
-                            "Orange line to dropped power weapons: AWP, AK-47, M4A4, M4A1-S and Deagle."));
+                            "Linea a TODAS las armas tiradas en el piso (antes solo AWP, AK-47, M4 y Deagle).",
+                            "Line to ALL weapons dropped on the floor (previously only AWP, AK-47, M4 and Deagle)."));
                     }
                 }
 
@@ -1780,6 +1804,17 @@ void RenderEspMenu() {
                 ImGui::Text(Localized("Actual: %s", "Current: %s"), VkToString(g_Esp.thirdPersonKeyVk));
                 ImGui::Text(Localized("Camara: %s", "Camera: %s"),
                     IsThirdPersonActive() ? Localized("tercera persona", "third person") : Localized("primera persona", "first person"));
+                if (g_Esp.enableThirdPerson && !IsThirdPersonActive()) {
+                    const char* tpReason = nullptr;
+                    switch (GetThirdPersonStatus()) {
+                    case 2: tpReason = Localized("offset del dumper invalido", "invalid dumper offset"); break;
+                    case 3: tpReason = Localized("patron JE no encontrado", "JE pattern not found"); break;
+                    case 4: tpReason = Localized("byte inesperado en el JE", "unexpected byte at the JE"); break;
+                    case 5: tpReason = Localized("fallo de escritura en memoria", "memory write failed"); break;
+                    default: tpReason = Localized("esperando offsets/base del juego", "waiting for game base/offsets"); break;
+                    }
+                    ImGui::Text(Localized("Estado: reintentando (%s)", "Status: retrying (%s)"), tpReason);
+                }
                 ImGui::TextDisabled(Localized("El checkbox habilita la funcion; la tecla alterna la camara solo con el checkbox activado",
                     "The checkbox enables the feature; the key toggles the camera only while the checkbox is on"));
                 ImGui::Checkbox(Localized("Mostrar dinero enemigo (scoreboard nativo)##show_money",

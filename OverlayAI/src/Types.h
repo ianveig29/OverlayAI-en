@@ -109,6 +109,11 @@ struct EspSettings {
     // Tracer colors (0-255, edited in the menu)
     int bombTracerR = 255, bombTracerG = 80, bombTracerB = 60;
     int tracerPlayerR = 255, tracerPlayerG = 255, tracerPlayerB = 255;
+    int tracerPlayerOrigin = 0;       // Player tracers: 0 = crosshair (center), 1 = top, 2 = bottom
+    bool tracerPlayerDistance = false; // Player tracers: distance in meters next to the line
+    bool tracerPlayerAlways = false;   // Player tracers: draw even when the target is out of view
+    bool showTracerWeaponBox = false;  // Weapon tracers: box around each dropped weapon
+    bool showBombEspBox = true;        // Bomb ESP: box around the dropped/planted C4
     int tracerWeaponR = 255, tracerWeaponG = 180, tracerWeaponB = 40;
     bool showDefuseKits = false;
     bool showArmorIndicator = false;
