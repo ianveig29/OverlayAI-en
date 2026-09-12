@@ -16,6 +16,7 @@ namespace Offsets {
     extern uintptr_t dwLocalPlayerPawn;
     extern uintptr_t dwWeaponC4;
     extern uintptr_t dwThirdPersonPatch;
+    extern uintptr_t dwThirdPersonValue;
     extern uintptr_t dwCSGOInput;
 
     // Bomb / C4

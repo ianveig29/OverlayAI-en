@@ -27,11 +27,6 @@ namespace {
     // Without step 1, patching the JE alone does nothing visible because the
     // camera value stays at 0 (first person).
 
-    // Relative offset inside CCSGOInput for the third-person camera value.
-    // dwCSGOInput + 0x228 = CameraThirdPersonValue (0 = first, 256 = third).
-    // This offset (0x228) is stable: it only changes if Valve restructures CCSGOInput.
-    // dwCSGOInput IS in the a2x dumper and auto-updates with each game update.
-    constexpr uintptr_t kThirdPersonValueSubOffset = 0x228;
 
     struct ThirdPersonPatchState {
         uintptr_t patchAddress = 0;     // Address of the JE byte to patch
@@ -281,23 +276,21 @@ bool RunThirdPerson() {
     }
 
     // Resolve the camera value address (0 or 256).
-    // IMPORTANT: the dumper's dwCSGOInput is the GLOBAL VARIABLE that
-    // HOLDS the pointer to the CCSGOInput object (the "mov rax,[client.dll+...]"
-    // in the disassembly). It must be dereferenced: read the pointer stored
-    // in that variable and only then add the 0x228 sub-offset. The code used
-    // to add 0x228 straight on top of client.dll, so the 256 landed on a
-    // random address and the camera never changed even with the JE patched.
-    // Verified against the 09/11 disassembly: pointer global at
-    // client.dll+23C72E8, CCSGOInput object, camera value (0 or 256 as a
-    // 4-byte integer) at object + 0x228.
-    const uintptr_t inputValue = Offsets::dwCSGOInput;
+    // FIXED (09/12): the camera value lives at a STATIC client.dll address
+    // (per the txt disassembly: client.dll+23E2838, inside a static input
+    // array with 0x928 stride). The previous formula (dereferencing the
+    // dumper's dwCSGOInput and adding 0x228) pointed at a DIFFERENT heap
+    // object (the pointer at [client.dll+23C72E8] targets a heap object,
+    // not this array): the 256 landed there and the camera never changed,
+    // or the write failed when the address was not mapped (reason 5
+    // "memory write failed"). We now use the custom static key
+    // dwThirdPersonValue from offsets.json, derived directly from the txt's
+    // Cheat Engine session. The a2x dumper does NOT provide it.
+    const uintptr_t inputValue = Offsets::dwThirdPersonValue;
     if (inputValue == 0) { g_tp.lastFailReason = 1; return false; }
     if (mem.clientModuleSize != 0 && inputValue >= mem.clientModuleSize)
         return false;
-    const uintptr_t inputInstance =
-        mem.Read<uintptr_t>(mem.clientModule + inputValue);
-    if (!IsValidPtr(inputInstance)) return false;
-    g_tp.valueAddress = inputInstance + kThirdPersonValueSubOffset;
+    g_tp.valueAddress = mem.clientModule + inputValue;
 
     if (!g_tp.patchAddress || !g_tp.valueAddress) {
         g_tp.lastFailReason = !g_tp.patchAddress
@@ -335,7 +328,7 @@ bool RunThirdPerson() {
     // Step 1: Write 256 at the camera value address.
     // This tells the engine "the camera is in third person".
     if (!WriteThirdPersonValue(g_tp.valueAddress, 256)) {
-        g_tp.lastFailReason = 5;
+        g_tp.lastFailReason = 9;
         return false;
     }
 
@@ -343,7 +336,7 @@ bool RunThirdPerson() {
     // If the byte is already 0x75, no need to write again.
     if (current == 0x74) {
         if (!WriteExecutableByte(g_tp.patchAddress, 0x74, 0x75)) {
-            g_tp.lastFailReason = 5;
+            g_tp.lastFailReason = 10;
             return false;
         }
     }
@@ -371,12 +364,21 @@ bool IsThirdPersonActive() {
     return g_tp.applied;
 }
 
+int ReadThirdPersonCameraValue() {
+    // Reads the current camera value (0 = first person, 256 = third person)
+    // straight from the static address. Used by the menu to verify live that
+    // the camera write is landing. Returns -1 with no address resolved.
+    if (!g_tp.valueAddress) return -1;
+    return mem.Read<int>(g_tp.valueAddress);
+}
+
 int GetThirdPersonStatus() {
     // 0 = applied, 1 = waiting for base/offsets, 2 = invalid dumper
-    // offset, 3 = pattern not found, 4 = unexpected byte, 5 = write
-    // failure, 6 = pattern: unreadable memory, 7 = pattern: 0 matches,
-    // 8 = pattern: ambiguous. Shown in the menu so a failure is never
-    // invisible again.
+    // offset, 3 = pattern not found, 4 = unexpected byte,
+    // 6 = pattern: unreadable memory, 7 = pattern: 0 matches,
+    // 8 = pattern: ambiguous, 9 = camera value: write failed,
+    // 10 = JE patch: write/protect failed. Shown in the menu so a
+    // failure is never invisible again.
     if (g_tp.applied) return 0;
     if (!mem.clientModule || Offsets::dwCSGOInput == 0) return 1;
     // If the dumper offset proved invalid and the pattern scan already

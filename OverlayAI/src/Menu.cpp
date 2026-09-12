@@ -1802,7 +1802,8 @@ void RenderEspMenu() {
                     g_Esp.waitingForThirdPersonKey = !g_Esp.waitingForThirdPersonKey;
                 ImGui::SameLine();
                 ImGui::Text(Localized("Actual: %s", "Current: %s"), VkToString(g_Esp.thirdPersonKeyVk));
-                ImGui::Text(Localized("Camara: %s", "Camera: %s"),
+                ImGui::Text(Localized("Camara: %d (%s)", "Camera: %d (%s)"),
+                    ReadThirdPersonCameraValue(),
                     IsThirdPersonActive() ? Localized("tercera persona", "third person") : Localized("primera persona", "first person"));
                 if (g_Esp.enableThirdperson && !IsThirdPersonActive()) {
                     const char* tpReason = nullptr;
@@ -1810,7 +1811,8 @@ void RenderEspMenu() {
                     case 2: tpReason = Localized("offset del dumper invalido", "invalid dumper offset"); break;
                     case 3: tpReason = Localized("patron JE no encontrado", "JE pattern not found"); break;
                     case 4: tpReason = Localized("byte inesperado en el JE", "unexpected byte at the JE"); break;
-                    case 5: tpReason = Localized("fallo de escritura en memoria", "memory write failed"); break;
+                    case 9: tpReason = Localized("valor de camara: escritura fallo", "camera value: write failed"); break;
+                    case 10: tpReason = Localized("parche del JE fallo (VirtualProtectEx)", "JE patch failed (VirtualProtectEx)"); break;
                     case 6: tpReason = Localized("patron: memoria ilegible", "pattern: unreadable memory"); break;
                     case 7: tpReason = Localized("patron: 0 coincidencias (cambio con el update)", "pattern: 0 matches (moved with the update)"); break;
                     case 8: tpReason = Localized("patron: ambiguo (multiples coincidencias)", "pattern: ambiguous (multiple matches)"); break;
