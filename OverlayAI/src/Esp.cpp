@@ -261,8 +261,8 @@ namespace {
         // of the model (the C4 is roughly 60 cm long/wide).
         if (g_Esp.showBombEspBox) {
             float bx, by, bw, bh;
-            const Vector3 boxMins(-16.0f, -16.0f, -4.0f);
-            const Vector3 boxMaxs(16.0f, 16.0f, 12.0f);
+            const Vector3 boxMins{-16.0f, -16.0f, -4.0f};
+            const Vector3 boxMaxs{16.0f, 16.0f, 12.0f};
             if (ComputeCollisionScreenBox(boxMins, boxMaxs, bombPos, viewMatrix,
                     screenWidth, screenHeight, bx, by, bw, bh)) {
                 const ImU32 bombBoxColor = IM_COL32(
@@ -326,12 +326,6 @@ namespace {
     std::unordered_map<uintptr_t, std::pair<uintptr_t, bool>> g_groundWeaponClassCache;
     ULONGLONG g_weaponScanNextMs = 0;
     int g_weaponScanChunk = 0;
-
-    static bool MatchesTracerWeaponList(const char* name) {
-        for (const char* wanted : kTracerWeaponNames)
-            if (strcmp(name, wanted) == 0) return true;
-        return false;
-    }
 
     // A cached weapon is still valid if: the identity did not change (the
     // entity was not recycled for something else) and the owner is still
@@ -464,8 +458,8 @@ namespace {
             // of a weapon on the floor (~35 cm per side).
             if (g_Esp.showTracerWeaponBox) {
                 float bx, by, bw, bh;
-                const Vector3 boxMins(-9.0f, -9.0f, -9.0f);
-                const Vector3 boxMaxs(9.0f, 9.0f, 9.0f);
+                const Vector3 boxMins{-9.0f, -9.0f, -9.0f};
+                const Vector3 boxMaxs{9.0f, 9.0f, 9.0f};
                 if (ComputeCollisionScreenBox(boxMins, boxMaxs, pos, viewMatrix,
                         screenWidth, screenHeight, bx, by, bw, bh)) {
                     const ImU32 weaponBoxColor = IM_COL32(
