@@ -1,5 +1,11 @@
 #pragma once
 
+// RUNBOOK: if the feature breaks after a CS2 update, follow lab-06 in the
+// cs2-internals repo:
+// docs/13-labs/lab-06-thirdperson-runbook.md (diagnosis by status codes,
+// the Cheat Engine procedure to re-derive dwThirdPersonValue, and
+// re-deriving the JE pattern).
+
 // Third-person camera mode by patching two things in client.dll:
 //
 // 1) Writes 256 at client.dll + dwThirdPersonValue (static input-array
