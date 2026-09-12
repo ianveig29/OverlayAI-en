@@ -97,6 +97,19 @@ namespace {
     }
 }
 
+    // Overlay keys only while the game (or the overlay itself) has focus:
+    // prevents typing in the Steam chat (its own steam.exe window),
+    // Discord or the browser from firing the keybinds. LIMITATION: the
+    // IN-GAME chat (Y/U) cannot be reliably detected from outside (the
+    // focused window is still the game's).
+    bool IsGameInputFocused() {
+        const HWND foregroundWindow = GetForegroundWindow();
+        if (!foregroundWindow) return false;
+        DWORD foregroundPid = 0;
+        GetWindowThreadProcessId(foregroundWindow, &foregroundPid);
+        return foregroundPid == mem.pid || foregroundWindow == g_OverlayHwnd;
+    }
+
 
 
 int main(int argc, char** argv) {
@@ -276,12 +289,15 @@ int main(int argc, char** argv) {
         PollAimKeyBind();
         PollBhopKeyBind();
         PollThirdPersonKeyBind();
-        bool menuKeyDown = (GetAsyncKeyState(g_App.menuToggleVk) & 0x8000) != 0;
+        const bool gameKeysActive = IsGameInputFocused();
+        bool menuKeyDown = gameKeysActive &&
+            (GetAsyncKeyState(g_App.menuToggleVk) & 0x8000) != 0;
         if (menuKeyDown && !insertWasDown)
             g_MenuOpen = !g_MenuOpen;
 
         // Third-person toggle key (ignored while a new key is being captured)
-        bool tpKeyDown = (GetAsyncKeyState(g_Esp.thirdPersonKeyVk) & 0x8000) != 0;
+        bool tpKeyDown = gameKeysActive && !g_MenuOpen &&
+            (GetAsyncKeyState(g_Esp.thirdPersonKeyVk) & 0x8000) != 0;
         if (tpKeyDown && !tpWasDown && !g_Esp.waitingForThirdPersonKey) {
             g_Esp.enableThirdperson = !g_Esp.enableThirdperson;
         }
