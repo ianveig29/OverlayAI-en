@@ -39,6 +39,18 @@
 //      The result is "client.dll"+XXXXXX.
 //   3. Update "dwViewPunchDecayConVar" in OverlayAI/offsets.json with the
 //      XXXXXX in decimal and you are done. The internal +0x58 rarely changes.
+//
+// ANTI-UPDATE RESOLUTION (v2):
+// The dwViewPunchDecayConVar key goes stale on every game update. To
+// avoid going blind, the module has an automatic fallback: if the key's
+// chain is broken, it scans client.dll for the "view_punch_decay"
+// literal, finds the pointers that reference that name (the ConVarRef
+// registration structure) and rebuilds the chain
+// key -> object -> value from scratch, validating the object by content.
+// Result: after a typical update the feature recovers BY ITSELF (takes a
+// couple of 5-second retries) and re-deriving with CE is not even needed.
+// The Cheat Engine procedure above remains the last resort if Valve
+// changes the ConVar layout (+0x58) or the name.
 // ============================================================================
 
 struct AntiViewPunchStatus {
@@ -47,6 +59,9 @@ struct AntiViewPunchStatus {
     float originalValue = 0.f; // original value captured before touching anything
     bool  modified = false;   // true if we wrote a different value
     bool  active = false;     // true if the feature is applied right now
+    int   resolveSource = 0;  // 0 = offsets.json key, 1 = name-based scan
+    int   scanStringMatches = 0; // diagnostic: name occurrences found
+    int   scanRefCandidates = 0; // diagnostic: references to the name validated
 };
 
 void UpdateAntiViewPunch();      // call every frame of the main loop

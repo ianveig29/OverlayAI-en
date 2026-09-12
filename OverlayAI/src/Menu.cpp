@@ -12,6 +12,7 @@
 #include "ThirdPerson.h"
 #include "RecoilControl.h"
 #include "ViewPunch.h"
+#include "ChatSpam.h"
 #include "Stats.h"
 #include "WeaponIcons.h"
 #include "InventoryCatalog.h"
@@ -1865,6 +1866,56 @@ void RenderEspMenu() {
                     "Patches is_hltv while Tab is held (scoreboard). The pause menu (ESC) is only hidden while the scoreboard is open"));
                 ImGui::Checkbox(Localized("Perfil falso##fake_profile",
                     "Fake profile##fake_profile"), &g_Esp.fakeProfile);
+
+                ImGui::Separator();
+                ImGui::TextUnformatted(Localized("Chat nativo",
+                    "Native chat"));
+                ImGui::Checkbox(Localized("Spam de mensajes##cs_enabled",
+                    "Message spam##cs_enabled"), &g_ChatSpam.spamEnabled);
+                if (g_ChatSpam.spamEnabled) {
+                    ImGui::Indent(20.0f);
+                    ImGui::SliderInt(Localized("Intervalo (segundos)##cs_interval",
+                        "Interval (seconds)##cs_interval"), &g_ChatSpam.intervalSeconds, 2, 60);
+                    const char* chatOptions[] = { Localized("Todos (U)", "All chat (U)"),
+                        Localized("Equipo (Y)", "Team (Y)") };
+                    int chatKind = g_ChatSpam.useTeamChat ? 1 : 0;
+                    ImGui::Combo(Localized("Destino##cs_chat", "Target##cs_chat"),
+                        &chatKind, chatOptions, 2);
+                    g_ChatSpam.useTeamChat = chatKind != 0;
+                    for (int i = 0; i < 4; ++i) {
+                        char label[32];
+                        sprintf_s(label, Localized("Mensaje %d##cs_msg%d",
+                            "Message %d##cs_msg%d"), i + 1, i + 1);
+                        ImGui::InputText(label, g_ChatSpam.messages[i],
+                            sizeof(g_ChatSpam.messages[i]));
+                    }
+                    ImGui::Unindent(20.0f);
+                }
+                ImGui::Checkbox(Localized("Mensaje al matar (kill say)##cs_killsay",
+                    "Kill say message##cs_killsay"), &g_ChatSpam.killSayEnabled);
+                if (g_ChatSpam.killSayEnabled) {
+                    ImGui::Indent(20.0f);
+                    ImGui::InputText(Localized("Mensaje##cs_killsay_msg",
+                        "Message##cs_killsay_msg"), g_ChatSpam.killSayMessage,
+                        sizeof(g_ChatSpam.killSayMessage));
+                    ImGui::Unindent(20.0f);
+                }
+                {
+                    const ChatSpamStatus cs = GetChatSpamStatus();
+                    if (!cs.gameFocused)
+                        ImGui::TextDisabled(Localized("Estado: esperando el foco del juego",
+                            "Status: waiting for the game window focus"));
+                    else if (cs.busy)
+                        ImGui::Text(Localized("Estado: escribiendo...",
+                            "Status: typing..."));
+                    else
+                        ImGui::Text(Localized("Estado: listo | enviados: %d | kills: %d",
+                            "Status: ready | sent: %d | kills: %d"),
+                            cs.messagesSent, cs.killsDetected);
+                }
+                ImGui::TextDisabled(Localized(
+                    "Escribe en el chat REAL del juego simulando teclado (portapapeles + Ctrl+V). Solo envia teclas con la ventana del juego en foco y el menu cerrado.",
+                    "Writes to the REAL in-game chat by simulating keyboard (clipboard + Ctrl+V). Keys are only sent while the game window is focused and the menu is closed."));
 
                 ImGui::EndTabItem();
             }

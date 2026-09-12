@@ -20,6 +20,9 @@ namespace Offsets {
 // Static pointer in client.dll to the view_punch_decay ConVar object
 // (custom key from 12/09/2026: the dumper does not provide it; CE recovery in ViewPunch.h).
 extern uintptr_t dwViewPunchDecayConVar;
+// Kill say chain: controller -> ActionTrackingServices -> round kills.
+extern uintptr_t m_pActionTrackingServices;
+extern uintptr_t m_iNumRoundKills;
     extern uintptr_t dwCSGOInput;
 
     // Bomb / C4

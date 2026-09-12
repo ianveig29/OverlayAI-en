@@ -18,6 +18,7 @@ TriggerbotSettings g_Triggerbot;
 BhopSettings g_Bhop;
 InventoryChangerSettings g_InventoryChanger;
 AimSettings g_Aim;
+ChatSpamSettings g_ChatSpam;
 HWND g_OverlayHwnd = nullptr;
 bool g_MenuOpen = false;
 
@@ -197,6 +198,13 @@ void SaveEspConfig(const char* path) {
     fprintf(f, "rcs_enabled=%d\n", g_Aim.recoilControlSystem ? 1 : 0);
     fprintf(f, "antiviewpunch_enabled=%d\n", g_Aim.enableAntiViewPunch ? 1 : 0);
     fprintf(f, "antiviewpunch_decay=%d\n", g_Aim.antiViewPunchDecay);
+    fprintf(f, "chatspam_enabled=%d\n", g_ChatSpam.spamEnabled ? 1 : 0);
+    fprintf(f, "chatspam_interval=%d\n", g_ChatSpam.intervalSeconds);
+    fprintf(f, "chatspam_team=%d\n", g_ChatSpam.useTeamChat ? 1 : 0);
+    for (int i = 0; i < 4; ++i)
+        fprintf(f, "chatspam_msg%d=%s\n", i + 1, g_ChatSpam.messages[i]);
+    fprintf(f, "killsay_enabled=%d\n", g_ChatSpam.killSayEnabled ? 1 : 0);
+    fprintf(f, "killsay_msg=%s\n", g_ChatSpam.killSayMessage);
     fprintf(f, "rcs_strength=%d\n", g_Aim.rcsStrengthPercent);
     fprintf(f, "flash_opacity_percent=%d\n", g_Esp.antiFlashOpacityPercent);
     fprintf(f, "flash_threshold=%f\n", g_Esp.flashThreshold);
@@ -466,11 +474,29 @@ void LoadEspConfig(const char* path) {
             g_Esp.showMoney = i1 != 0;
         } else if (sscanf_s(p, "fake_profile=%d", &i1) == 1) {
             g_Esp.fakeProfile = i1 != 0;
-        } else if (sscanf_s(p, "rcs_enabled=%d", &i1) == 1) {
         } else if (sscanf_s(p, "antiviewpunch_enabled=%d", &i1) == 1) {
             g_Aim.enableAntiViewPunch = (i1 != 0);
         } else if (sscanf_s(p, "antiviewpunch_decay=%d", &i1) == 1) {
             if (i1 >= 20 && i1 <= 999) g_Aim.antiViewPunchDecay = i1;
+        } else if (sscanf_s(p, "chatspam_enabled=%d",                 } else if (sscanf_s(p, "chatspam_enabled=%d", &i1) == 1) {i1) == 1) {
+            g_ChatSpam.spamEnabled = i1 != 0;
+        } else if (sscanf_s(p, "chatspam_interval=%d", &i1) == 1) {
+            if (i1 >= 2 && i1 <= 60) g_ChatSpam.intervalSeconds = i1;
+        } else if (sscanf_s(p, "chatspam_team=%d", &i1) == 1) {
+            g_ChatSpam.useTeamChat = i1 != 0;
+        } else if (strncmp(p, "chatspam_msg1=", 14) == 0) {
+            (void)sscanf_s(p, "chatspam_msg1=%127[^\r\n]", g_ChatSpam.messages[0], (unsigned)sizeof(g_ChatSpam.messages[0]));
+        } else if (strncmp(p, "chatspam_msg2=", 14) == 0) {
+            (void)sscanf_s(p, "chatspam_msg2=%127[^\r\n]", g_ChatSpam.messages[1], (unsigned)sizeof(g_ChatSpam.messages[1]));
+        } else if (strncmp(p, "chatspam_msg3=", 14) == 0) {
+            (void)sscanf_s(p, "chatspam_msg3=%127[^\r\n]", g_ChatSpam.messages[2], (unsigned)sizeof(g_ChatSpam.messages[2]));
+        } else if (strncmp(p, "chatspam_msg4=", 14) == 0) {
+            (void)sscanf_s(p, "chatspam_msg4=%127[^\r\n]", g_ChatSpam.messages[3], (unsigned)sizeof(g_ChatSpam.messages[3]));
+        } else if (sscanf_s(p, "killsay_enabled=%d", &i1) == 1) {
+            g_ChatSpam.killSayEnabled = i1 != 0;
+        } else if (strncmp(p, "killsay_msg=", 12) == 0) {
+            (void)sscanf_s(p, "killsay_msg=%127[^\r\n]", g_ChatSpam.killSayMessage, (unsigned)sizeof(g_ChatSpam.killSayMessage));
+        } else if (sscanf_s(p, "rcs_enabled=%d", &i1) == 1) {
             g_Aim.recoilControlSystem = i1 != 0;
         } else if (sscanf_s(p, "rcs_strength=%d", &i1) == 1) {
             if (i1 >= 0 && i1 <= 100) g_Aim.rcsStrengthPercent = i1;

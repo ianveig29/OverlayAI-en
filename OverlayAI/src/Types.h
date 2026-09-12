@@ -236,3 +236,14 @@ struct AimSettings {
     // Target decay while the feature is active (999 = instant).
     int antiViewPunchDecay = 999;
 };
+
+// Native chat: REAL in-game messages typed via keyboard simulation
+// (clipboard + Ctrl+V). See ChatSpam.h for the full explanation.
+struct ChatSpamSettings {
+    bool spamEnabled = false;      // message loop with interval
+    int intervalSeconds = 5;      // seconds between messages (minimum 2)
+    bool useTeamChat = false;     // false = all chat (U), true = team (Y)
+    char messages[4][128] = {};   // loop messages (empty = skipped)
+    bool killSayEnabled = false;  // send a message on kill
+    char killSayMessage[128] = {}; // the kill say message
+};

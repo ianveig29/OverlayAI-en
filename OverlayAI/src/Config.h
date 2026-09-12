@@ -12,6 +12,7 @@ extern BhopSettings g_Bhop;
 extern InventoryChangerSettings g_InventoryChanger;
 struct AimSettings;
 extern AimSettings g_Aim;
+extern struct ChatSpamSettings g_ChatSpam;
 extern HWND g_OverlayHwnd;
 extern bool g_MenuOpen;
 

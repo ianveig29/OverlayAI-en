@@ -29,6 +29,7 @@
 #include "AntiFlash.h"
 #include "RecoilControl.h"
 #include "ViewPunch.h"
+#include "ChatSpam.h"
 #include "AntiSmoke.h"
 #include "SmokeColor.h"
 #include "OtherGlow.h"
@@ -385,6 +386,9 @@ int main(int argc, char** argv) {
 
         // Anti View Punch: re-asserts the ConVar decay every frame.
         UpdateAntiViewPunch();
+
+        // Native chat: state machine for the spammer and the kill say.
+        UpdateChatSpam();
 
         // Third person: the checkbox is the master enable. Checking it (or
         // pressing the toggle key, which flips the checkbox) activates the
