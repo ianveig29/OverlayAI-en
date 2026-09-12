@@ -267,8 +267,11 @@ namespace {
                     screenWidth, screenHeight, bx, by, bw, bh)) {
                 const ImU32 bombBoxColor = IM_COL32(
                     g_Esp.bombTracerR, g_Esp.bombTracerG, g_Esp.bombTracerB, 230);
+                // Same outline color as the marker (outline is declared
+                // further down in this function, hence the literal here).
                 drawList->AddRect(ImVec2(bx - 1.0f, by - 1.0f),
-                    ImVec2(bx + bw + 1.0f, by + bh + 1.0f), outline, 0.0f, 0, 2.5f);
+                    ImVec2(bx + bw + 1.0f, by + bh + 1.0f),
+                    IM_COL32(0, 0, 0, 200), 0.0f, 0, 2.5f);
                 drawList->AddRect(ImVec2(bx, by), ImVec2(bx + bw, by + bh),
                     bombBoxColor, 0.0f, 0, 1.2f);
             }
@@ -876,7 +879,7 @@ namespace {
     // "right" axis to pick which side edge to point at. This is the
     // "always show" mode: the line never disappears, it just changes length.
     static ImVec2 ClampDirectionToScreen(const Vector3& world,
-        Matrix4x4& viewMatrix, const ImVec2& origin,
+        const Matrix4x4& viewMatrix, const ImVec2& origin,
         int screenWidth, int screenHeight, bool& ok) {
         ok = false;
         const float clipW = world.x * viewMatrix.m[3][0] +
