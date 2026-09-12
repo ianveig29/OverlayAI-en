@@ -1804,13 +1804,16 @@ void RenderEspMenu() {
                 ImGui::Text(Localized("Actual: %s", "Current: %s"), VkToString(g_Esp.thirdPersonKeyVk));
                 ImGui::Text(Localized("Camara: %s", "Camera: %s"),
                     IsThirdPersonActive() ? Localized("tercera persona", "third person") : Localized("primera persona", "first person"));
-                if (g_Esp.enableThirdPerson && !IsThirdPersonActive()) {
+                if (g_Esp.enableThirdperson && !IsThirdPersonActive()) {
                     const char* tpReason = nullptr;
                     switch (GetThirdPersonStatus()) {
                     case 2: tpReason = Localized("offset del dumper invalido", "invalid dumper offset"); break;
                     case 3: tpReason = Localized("patron JE no encontrado", "JE pattern not found"); break;
                     case 4: tpReason = Localized("byte inesperado en el JE", "unexpected byte at the JE"); break;
                     case 5: tpReason = Localized("fallo de escritura en memoria", "memory write failed"); break;
+                    case 6: tpReason = Localized("patron: memoria ilegible", "pattern: unreadable memory"); break;
+                    case 7: tpReason = Localized("patron: 0 coincidencias (cambio con el update)", "pattern: 0 matches (moved with the update)"); break;
+                    case 8: tpReason = Localized("patron: ambiguo (multiples coincidencias)", "pattern: ambiguous (multiple matches)"); break;
                     default: tpReason = Localized("esperando offsets/base del juego", "waiting for game base/offsets"); break;
                     }
                     ImGui::Text(Localized("Estado: reintentando (%s)", "Status: retrying (%s)"), tpReason);

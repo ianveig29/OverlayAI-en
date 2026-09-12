@@ -48,6 +48,10 @@ namespace {
         bool      patchFromOffset = false;
         // Last failure reason for the menu status line (0 = all ok).
         int       lastFailReason = 0;
+        // Diagnostics of the last pattern scan (for the status line).
+        int       scanAttempts = 0;   // scans done this session
+        int       scanMatchCount = 0; // matches found by the last scan
+        bool      scanReadOk = false;  // true if the last scan read memory
     };
 
     ThirdPersonPatchState g_tp;
@@ -81,43 +85,96 @@ namespace {
     constexpr size_t g_targetIndex = 10;
 
     // ---- Module scan --------------------------------------------------------
-    // Reads the entire client.dll into a local buffer and searches for the
-    // pattern with wildcards. Returns the address of the 0x74 byte if there
-    // is exactly 1 match, or 0 if there are none or multiple (ambiguous).
+    // Searches a region of the module for the pattern, reading in 1 MB
+    // chunks: a single unreadable page only ruins its own chunk. The old
+    // version read the whole client.dll in one go, so one unreadable
+    // page cancelled the entire scan, which failed forever without saying why.
+    struct PatternScanResult {
+        std::vector<uintptr_t> matches;
+        bool readOk = false;
+    };
+
+    PatternScanResult ScanThirdPersonPattern(size_t startOffset, size_t size) {
+        PatternScanResult result;
+        if (!mem.clientModule || mem.clientModuleSize == 0) return result;
+        if (startOffset >= mem.clientModuleSize) return result;
+        if (size > mem.clientModuleSize - startOffset)
+            size = mem.clientModuleSize - startOffset;
+
+        const size_t kChunk = 1024 * 1024;
+        const size_t patternLen = g_pattern.size();
+        std::vector<uint8_t> buffer(kChunk + patternLen);
+
+        for (size_t base = 0; base < size; base += kChunk) {
+            const size_t chunk = kChunk < size - base ? kChunk : size - base;
+            // Overlap with the next chunk: a match split at the edge is not lost.
+            size_t toRead = chunk + patternLen;
+            if (toRead > size - base) toRead = size - base;
+            SIZE_T bytesRead = 0;
+            if (!ReadProcessMemory(mem.hProcess,
+                    reinterpret_cast<LPCVOID>(
+                        mem.clientModule + startOffset + base),
+                    buffer.data(), toRead, &bytesRead) ||
+                bytesRead < patternLen)
+                continue;  // unreadable chunk: move on to the next one
+            result.readOk = true;
+            Stats::rpmReadCount.fetch_add(1);
+
+            for (size_t i = 0; i + patternLen <= bytesRead && i < chunk; ++i) {
+                bool ok = true;
+                for (size_t j = 0; j < patternLen; ++j) {
+                    if (!g_pattern[j].wildcard && buffer[i + j] != g_pattern[j].value) {
+                        ok = false;
+                        break;
+                    }
+                }
+                if (!ok) continue;
+                result.matches.push_back(
+                    mem.clientModule + startOffset + base + i + g_targetIndex);
+            }
+        }
+        return result;
+    }
+
     uintptr_t FindThirdPersonPatchByPattern() {
         if (!mem.clientModule || mem.clientModuleSize == 0) return 0;
+        ++g_tp.scanAttempts;
 
-        // Read the entire module into a local buffer.
-        std::vector<uint8_t> module(mem.clientModuleSize);
-        SIZE_T bytesRead = 0;
-        if (!ReadProcessMemory(mem.hProcess,
-                reinterpret_cast<LPCVOID>(mem.clientModule),
-                module.data(), module.size(), &bytesRead) || bytesRead < 16)
-            return 0;
-        Stats::rpmReadCount.fetch_add(1);
-
-        uintptr_t match = 0;
-        size_t matchCount = 0;
-        const size_t patternLen = g_pattern.size();
-
-        for (size_t i = 0; i + patternLen <= bytesRead; ++i) {
-            bool ok = true;
-            for (size_t j = 0; j < patternLen; ++j) {
-                if (!g_pattern[j].wildcard && module[i + j] != g_pattern[j].value) {
-                    ok = false;
-                    break;
+        // 1) Window of +/- 8 MB around the dumper offset, EVEN if that offset
+        //    was already marked invalid: game updates move this code very
+        //    little (the last one shifted it ~2.8 KB), so the real JE almost
+        //    certainly falls inside the window. And it is far cheaper than
+        //    reading the entire module.
+        const uintptr_t hint = Offsets::dwThirdPersonPatch;
+        if (hint != 0 && hint < mem.clientModuleSize) {
+            const size_t kWindow = 8 * 1024 * 1024;
+            const size_t start = hint > kWindow ? (size_t)(hint - kWindow) : 0;
+            PatternScanResult r = ScanThirdPersonPattern(start, 2 * kWindow);
+            g_tp.scanMatchCount = (int)r.matches.size();
+            g_tp.scanReadOk = r.readOk;
+            if (!r.matches.empty()) {
+                if (r.matches.size() == 1) return r.matches[0];
+                // Varias coincidencias: quedarse con la mas cercana al offset
+                // del dumper (el patron es especifico, un falso positivo mas
+                // cerca que el JE real es muy improbable).
+                uintptr_t best = r.matches[0];
+                uintptr_t bestDist = best > hint ? best - hint : hint - best;
+                for (size_t k = 1; k < r.matches.size(); ++k) {
+                    const uintptr_t m = r.matches[k];
+                    const uintptr_t d = m > hint ? m - hint : hint - m;
+                    if (d < bestDist) { bestDist = d; best = m; }
                 }
+                return best;
             }
-            if (!ok) continue;
-
-            // Match found. The address of the 0x74 (target) is:
-            // module base + i + target index within the pattern.
-            match = mem.clientModule + i + g_targetIndex;
-            ++matchCount;
-            if (matchCount > 1) return 0;  // ambiguous, don't use
         }
 
-        return matchCount == 1 ? match : 0;
+        // Sin offset de referencia (o ventana vacia): escanear el modulo
+        // completo por chunks. Aqui exigimos una unica coincidencia: sin
+        // punto de referencia, elegir entre varias seria adivinar.
+        PatternScanResult r = ScanThirdPersonPattern(0, mem.clientModuleSize);
+        g_tp.scanMatchCount = (int)r.matches.size();
+        g_tp.scanReadOk = r.readOk;
+        return r.matches.size() == 1 ? r.matches[0] : 0;
     }
 
     // ---- Byte writer --------------------------------------------------------
@@ -308,13 +365,22 @@ bool IsThirdPersonActive() {
 int GetThirdPersonStatus() {
     // 0 = applied, 1 = waiting for base/offsets, 2 = invalid dumper
     // offset, 3 = pattern not found, 4 = unexpected byte, 5 = write
-    // failure. Shown in the menu so a failure is never invisible again.
+    // failure, 6 = pattern: unreadable memory, 7 = pattern: 0 matches,
+    // 8 = pattern: ambiguous. Shown in the menu so a failure is never
+    // invisible again.
     if (g_tp.applied) return 0;
     if (!mem.clientModule || Offsets::dwCSGOInput == 0) return 1;
+    // If the dumper offset proved invalid and the pattern scan already
+    // ran, the scan is now in charge: report its result instead of
+    // repeating "invalid offset" forever.
+    if (!g_tp.patchAddress && g_tp.scanAttempts > 0) {
+        if (!g_tp.scanReadOk) return 6;
+        if (g_tp.scanMatchCount == 0) return 7;
+        if (g_tp.scanMatchCount > 1) return 8;
+    }
     if (g_tp.lastFailReason != 0) return g_tp.lastFailReason;
     return 1;
 }
-
 // ---- Keybind capture -----------------------------------------------------
 // Same as PollBhopKeyBind: when the user clicks "Change key" in the menu,
 // waitingForThirdPersonKey is set to true. This function scans all keys
