@@ -1809,7 +1809,8 @@ void RenderEspMenu() {
                 ImGui::Text(Localized("Camara: %d (%s)", "Camera: %d (%s)"),
                     ReadThirdPersonCameraValue(),
                     IsThirdPersonActive() ? Localized("tercera persona", "third person") : Localized("primera persona", "first person"));
-                if (g_Esp.enableThirdperson && !IsThirdPersonActive()) {
+                if (g_Esp.enableThirdperson && g_Esp.thirdPersonCameraActive &&
+                    !IsThirdPersonActive()) {
                     const char* tpReason = nullptr;
                     switch (GetThirdPersonStatus()) {
                     case 2: tpReason = Localized("offset del dumper invalido", "invalid dumper offset"); break;

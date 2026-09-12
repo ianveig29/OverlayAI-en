@@ -295,11 +295,17 @@ int main(int argc, char** argv) {
         if (menuKeyDown && !insertWasDown)
             g_MenuOpen = !g_MenuOpen;
 
-        // Third-person toggle key (ignored while a new key is being captured)
+        // Third-person toggle key (ignored while a new key is being
+        // captured). The key does NOT touch the checkbox: it toggles the
+        // transient camera request and only while the master checkbox is
+        // armed. An accidental press while chatting no longer arms or
+        // disarms the persisted feature (the checkbox only changes from
+        // the menu).
         bool tpKeyDown = gameKeysActive && !g_MenuOpen &&
             (GetAsyncKeyState(g_Esp.thirdPersonKeyVk) & 0x8000) != 0;
         if (tpKeyDown && !tpWasDown && !g_Esp.waitingForThirdPersonKey) {
-            g_Esp.enableThirdperson = !g_Esp.enableThirdperson;
+            if (g_Esp.enableThirdperson)
+                g_Esp.thirdPersonCameraActive = !g_Esp.thirdPersonCameraActive;
         }
         tpWasDown = tpKeyDown;
         insertWasDown = menuKeyDown;
@@ -381,10 +387,18 @@ int main(int argc, char** argv) {
         // camera right away; unchecking restores it. If applying fails
         // (offsets not ready yet, JE byte mismatch), we retry on the next
         // frame instead of giving up silently for the whole session.
+        // Effective request = checkbox armed AND key pressed. The checkbox
+        // arms the feature (persisted in config); the key requests the
+        // camera (transient). Disarming the checkbox also drops the
+        // request: on re-arm the camera starts in first person until the
+        // key is pressed again.
+        if (!g_Esp.enableThirdperson)
+            g_Esp.thirdPersonCameraActive = false;
+        const bool tpRequested = g_Esp.enableThirdperson && g_Esp.thirdPersonCameraActive;
         static bool tpMasterPrev = false;
-        if (g_Esp.enableThirdperson != tpMasterPrev) {
-            tpMasterPrev = g_Esp.enableThirdperson;
-            if (g_Esp.enableThirdperson) {
+        if (tpRequested != tpMasterPrev) {
+            tpMasterPrev = tpRequested;
+            if (tpRequested) {
                 if (!RunThirdPerson())
                     tpMasterPrev = false;  // apply failed: retry next frame
             } else {
