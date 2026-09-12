@@ -161,6 +161,11 @@ struct EspSettings {
     bool skeletonUseTeamColor = false; // legacy setting kept for config compatibility
     // UI placeholder flags
     bool enableThirdperson = false;
+    // Third-person camera request (transient, NOT saved to config). The
+    // checkbox above ARMS the feature; the key toggles this request. That
+    // way a key pressed by accident while chatting never arms or disarms
+    // the persisted feature.
+    bool thirdPersonCameraActive = false;
     int thirdPersonKeyVk = 0x50; // Default P key to toggle third person
     bool waitingForThirdPersonKey = false; // true when user is about to assign key
     bool showMoney = false;
