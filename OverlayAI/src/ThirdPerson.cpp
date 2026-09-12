@@ -215,15 +215,23 @@ bool RunThirdPerson() {
     }
 
     // Resolve the camera value address (0 or 256).
-    // Derived from dwCSGOInput (auto-updated by the dumper) + 0x228.
-    // Previously this was a hardcoded absolute offset (dwThirdPersonValue = 0x23DBE98).
-    // Now it's calculated dynamically: client.dll + dwCSGOInput + 0x228.
+    // IMPORTANT: the dumper's dwCSGOInput is the GLOBAL VARIABLE that
+    // HOLDS the pointer to the CCSGOInput object (the "mov rax,[client.dll+...]"
+    // in the disassembly). It must be dereferenced: read the pointer stored
+    // in that variable and only then add the 0x228 sub-offset. The code used
+    // to add 0x228 straight on top of client.dll, so the 256 landed on a
+    // random address and the camera never changed even with the JE patched.
+    // Verified against the 09/11 disassembly: pointer global at
+    // client.dll+23C72E8, CCSGOInput object, camera value (0 or 256 as a
+    // 4-byte integer) at object + 0x228.
     const uintptr_t inputValue = Offsets::dwCSGOInput;
     if (inputValue == 0) { g_tp.lastFailReason = 1; return false; }
-    const uintptr_t valueOffset = inputValue + kThirdPersonValueSubOffset;
-    if (mem.clientModuleSize != 0 && valueOffset >= mem.clientModuleSize)
+    if (mem.clientModuleSize != 0 && inputValue >= mem.clientModuleSize)
         return false;
-    g_tp.valueAddress = mem.clientModule + valueOffset;
+    const uintptr_t inputInstance =
+        mem.Read<uintptr_t>(mem.clientModule + inputValue);
+    if (!IsValidPtr(inputInstance)) return false;
+    g_tp.valueAddress = inputInstance + kThirdPersonValueSubOffset;
 
     if (!g_tp.patchAddress || !g_tp.valueAddress) {
         g_tp.lastFailReason = !g_tp.patchAddress
