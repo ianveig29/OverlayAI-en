@@ -224,4 +224,11 @@ struct AimSettings {
     bool recoilControlSystem = false;
     // RCS compensation strength in percent (100 = perfect).
     int rcsStrengthPercent = 100;
+    // Horizontal (yaw) strength separate from vertical (pitch). Less %
+    // here keeps control during spray transfers between players.
+    int rcsStrengthHorizontalPercent = 100;
+    // Feed-forward: besides the current punch, compensates the punch
+    // VELOCITY (m_predictableBaseAngleVel) projected to the next frame.
+    // Kills the one-frame lag of the purely reactive approach.
+    bool rcsFeedForward = true;
 };

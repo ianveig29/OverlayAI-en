@@ -6,16 +6,18 @@
 #include "Config.h"
 
 #include <cmath>
+#include <chrono>
 
 // ============================================================================
 // RCS IMPLEMENTATION
 // ----------------------------------------------------------------------------
-// Per-frame formula (P being the current punch and P_prev the previous
-// frame's punch):
+// Per-frame formula (P being the current punch, P_prev the previous
+// frame's punch, and vel the predictable punch velocity):
 //
-//   delta = P - P_prev                    (how much the recoil grew)
-//   view  = view - delta * strength       (strength = rcsStrengthPercent/100)
-//   P_prev = P                            (saved for the next frame)
+//   P*    = P + vel * dt        (feed-forward: projects punch 1 frame ahead)
+//   delta = P* - P_prev         (how much recoil is ABOUT to grow)
+//   view  = view - delta * strength (strength: vertical/horizontal split)
+//   P_prev = P*                 (saved for the next frame)
 //
 // With punch in degrees and view angles in degrees, the subtraction is
 // direct. We only write when the delta exceeds a minimum (avoids writes
@@ -37,6 +39,13 @@ namespace {
     // Ceiling for a legitimate per-frame delta (degrees). A larger delta
     // is not real recoil but a bad read; explained in RunRCS.
     constexpr float kMaxDeltaPerFrameDegrees = 5.0f;
+
+    // Clock of the previous frame: its dt feeds the feed-forward
+    // projection and scales the anti-glitch ceiling (at low fps legit
+    // punch accumulates more degrees per frame, and the fixed ceiling
+    // used to clip real compensation).
+    std::chrono::steady_clock::time_point g_lastFrame =
+        std::chrono::steady_clock::now();
 
     // Returns the local player's pawn (same criteria as AntiFlash).
     uintptr_t GetLocalPawnFromSnapshot() {
@@ -97,6 +106,30 @@ void RunRCS() {
         predictable.z + unpredictable.z
     };
 
+    // Step 3b: frame dt and feed-forward. The engine stores in
+    // m_predictableBaseAngleVel the velocity at which the predictable
+    // punch grows (degrees per second). Projecting it one frame ahead
+    // (target = punch + vel * dt) keeps the crosshair pre-positioned for
+    // the punch that is COMING instead of always reacting one frame late:
+    // the bullet leaves with the angle already compensated. With
+    // feed-forward off (or if the vel read fails) target = punch and it
+    // behaves exactly like before (purely reactive).
+    const auto now = std::chrono::steady_clock::now();
+    float dt = std::chrono::duration<float>(now - g_lastFrame).count();
+    g_lastFrame = now;
+    if (dt > 0.25f) dt = 0.25f;  // freeze/alt-tab: do not over-predict
+    if (dt < 0.0f) dt = 0.0f;
+
+    Vector3 target = punch;
+    if (g_Aim.rcsFeedForward && Offsets::m_predictableBaseAngleVel != 0) {
+        Vector3 vel{ 0.0f, 0.0f, 0.0f };
+        if (ReadAngle(aimServices + Offsets::m_predictableBaseAngleVel, vel)) {
+            target = Vector3{ punch.x + vel.x * dt,
+                              punch.y + vel.y * dt,
+                              punch.z + vel.z * dt };
+        }
+    }
+
     // Step 3b: firing gate, adapted from the public recoilControl() in
     // tim_apple (github.com/kristofhracza/tim_apple, features/aim.cpp).
     // With m_iShotsFired loaded by the auto-updater, we compensate ONLY
@@ -108,32 +141,41 @@ void RunRCS() {
     if (Offsets::m_iShotsFired != 0) {
         const int shotsFired = mem.Read<int>(pawn + Offsets::m_iShotsFired);
         if (shotsFired <= 1) {
-            g_prevPunch = punch;
+            g_prevPunch = target;
             return;
         }
     }
 
     // Step 4: delta against the previous frame, scaled by strength.
-    const float strength = (g_Aim.rcsStrengthPercent < 0) ? 0.0f :
-        (g_Aim.rcsStrengthPercent > 100) ? 100.0f :
+    // Vertical strength (pitch, punch axis X): up to 115%. 100% leaves a
+    // small residual because the client punch is an approximation of the
+    // real recoil (server-side since the April 2026 update); the excess
+    // eats that residual. Horizontal strength is separate (less % keeps
+    // control during spray transfers between players).
+    const float strengthVert = (g_Aim.rcsStrengthPercent < 0) ? 0.0f :
+        (g_Aim.rcsStrengthPercent > 115) ? 1.15f :
         static_cast<float>(g_Aim.rcsStrengthPercent) / 100.0f;
+    const float strengthHoriz =
+        (g_Aim.rcsStrengthHorizontalPercent < 0) ? 0.0f :
+        (g_Aim.rcsStrengthHorizontalPercent > 115) ? 1.15f :
+        static_cast<float>(g_Aim.rcsStrengthHorizontalPercent) / 100.0f;
 
     const Vector3 rawDelta{
-        punch.x - g_prevPunch.x,
-        punch.y - g_prevPunch.y,
-        punch.z - g_prevPunch.z
+        target.x - g_prevPunch.x,
+        target.y - g_prevPunch.y,
+        target.z - g_prevPunch.z
     };
     const Vector3 delta{
-        rawDelta.x * strength,
-        rawDelta.y * strength,
-        rawDelta.z * strength
+        rawDelta.x * strengthVert,
+        rawDelta.y * strengthHoriz,
+        rawDelta.z * strengthHoriz
     };
 
     // Nothing to compensate (the punch did not change): do not write.
     if (std::fabs(delta.x) < kMinDeltaDegrees &&
         std::fabs(delta.y) < kMinDeltaDegrees &&
         std::fabs(delta.z) < kMinDeltaDegrees) {
-        g_prevPunch = punch;
+        g_prevPunch = target;
         return;
     }
 
@@ -145,9 +187,16 @@ void RunRCS() {
     // effect). Legitimate ceiling: the AK fires 10 shots per second; even
     // at low FPS the real punch grows a fraction of a degree per frame. A
     // 5-degree delta in one frame is not recoil: it is a bad read.
-    if (std::fabs(rawDelta.x) > kMaxDeltaPerFrameDegrees ||
-        std::fabs(rawDelta.y) > kMaxDeltaPerFrameDegrees ||
-        std::fabs(rawDelta.z) > kMaxDeltaPerFrameDegrees) {
+    // Ceiling scaled by frame time: the base ceiling (5 degrees) assumes
+    // ~60 fps; at lower fps legit punch accumulates more per frame and the
+    // fixed ceiling used to clip real compensation (under-compensating).
+    // dt is already saturated above, so a freeze does not inflate it.
+    const float maxDeltaThisFrame = kMaxDeltaPerFrameDegrees *
+        (dt < 0.0167f ? 1.0f : dt / 0.0167f);
+
+    if (std::fabs(rawDelta.x) > maxDeltaThisFrame ||
+        std::fabs(rawDelta.y) > maxDeltaThisFrame ||
+        std::fabs(rawDelta.z) > maxDeltaThisFrame) {
         // Punch read as exactly zero with a high reference: it is the
         // transient glitch. Discard the WHOLE frame (no write, no
         // reference update), same as deadlocked does: when the real
@@ -156,11 +205,11 @@ void RunRCS() {
         // If instead it is a real jump (RCS enabled in the middle of an
         // already advanced spray), sync the reference without writing:
         // compensation starts from the current state, no yank.
-        g_prevPunch = punch;
+        g_prevPunch = target;
         return;
     }
 
-    g_prevPunch = punch;
+    g_prevPunch = target;
 
     // Never move the aim while the cheat menu is open. The punch was
     // already updated above (g_prevPunch), so when the menu closes there

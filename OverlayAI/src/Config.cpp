@@ -196,6 +196,8 @@ void SaveEspConfig(const char* path) {
     fprintf(f, "fake_profile=%d\n", g_Esp.fakeProfile ? 1 : 0);
     fprintf(f, "rcs_enabled=%d\n", g_Aim.recoilControlSystem ? 1 : 0);
     fprintf(f, "rcs_strength=%d\n", g_Aim.rcsStrengthPercent);
+    fprintf(f, "rcs_strength_horizontal=%d\n", g_Aim.rcsStrengthHorizontalPercent);
+    fprintf(f, "rcs_feedforward=%d\n", g_Aim.rcsFeedForward ? 1 : 0);
     fprintf(f, "flash_opacity_percent=%d\n", g_Esp.antiFlashOpacityPercent);
     fprintf(f, "flash_threshold=%f\n", g_Esp.flashThreshold);
     fprintf(f, "aim_allow_flashed=%d\n", g_Aim.allowWhenFlashed ? 1 : 0);
@@ -467,7 +469,11 @@ void LoadEspConfig(const char* path) {
         } else if (sscanf_s(p, "rcs_enabled=%d", &i1) == 1) {
             g_Aim.recoilControlSystem = i1 != 0;
         } else if (sscanf_s(p, "rcs_strength=%d", &i1) == 1) {
-            if (i1 >= 0 && i1 <= 100) g_Aim.rcsStrengthPercent = i1;
+            if (i1 >= 0 && i1 <= 115) g_Aim.rcsStrengthPercent = i1;
+        } else if (sscanf_s(p, "rcs_strength_horizontal=%d", &i1) == 1) {
+            if (i1 >= 0 && i1 <= 115) g_Aim.rcsStrengthHorizontalPercent = i1;
+        } else if (sscanf_s(p, "rcs_feedforward=%d", &i1) == 1) {
+            g_Aim.rcsFeedForward = i1 != 0;
         } else if (sscanf_s(p, "flash_opacity_percent=%d", &i1) == 1) {
             if (i1 >= 0 && i1 <= 100) g_Esp.antiFlashOpacityPercent = i1;
         } else if (sscanf_s(p, "flash_threshold=%f", &f1) == 1) {
